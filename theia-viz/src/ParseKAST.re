@@ -1,36 +1,3 @@
-type line = {
-  start: point,
-  end_: point,
-  thickness: option(int)
-}
-and point = {
-  x: int,
-  y: int
-};
-
-module Decode = {
-  let point = json =>
-    Json.Decode.{
-      x: json |> field("x", int),
-      y: json |> field("y", int)
-    };
-
-  let line = json =>
-    Json.Decode.{
-      start:     json |> field("start", point),
-      end_:      json |> field("end", point),
-      thickness: json |> optional(field("thickness", int))
-    };
-};
-
-let data = {| {
-  "start": { "x": 1, "y": -4 },
-  "end":   { "x": 5, "y": 8 }
-} |};
-
-let line = data |> Json.parseOrRaise
-                |> Decode.line;
-
 /* goal: lambda x . x */
 let idJson = {| {
   "format": "KAST",
@@ -106,7 +73,7 @@ let cleanLabel = (s) => {
   }
 };
 
-module IdDecode = {
+module Decode = {
   open Json.Decode;
 
   /* todo: weird hack to get it to compile */
@@ -133,7 +100,7 @@ module IdDecode = {
   let kAst = (json) => json |> field("term", kNode());
 };
 
-let idDecoded = idJson |> Json.parseOrRaise |> IdDecode.kAst;
+let idDecoded = idJson |> Json.parseOrRaise |> Decode.kAst;
 
 let handleClick = (_event) => Js.log(idDecoded |> kNodePretty);
 
