@@ -131,12 +131,6 @@ module IdDecode = {
   };
 
   let kAst = (json) => json |> field("term", kNode());
-  
-  /* {
-    term: json |> field("term", )
-    x: json |> field("x", int),
-    y: json |> field("y", int)
-  }; */
 };
 
 let idDecoded = idJson |> Json.parseOrRaise |> IdDecode.kAst;
