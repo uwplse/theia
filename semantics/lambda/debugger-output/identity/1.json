@@ -1,0 +1,1 @@
+{"format":"KAST","version":1,"term":{"node":"KApply","label":"<k>","variable":false,"arity":1,"args":[{"node":"KApply","label":"lambda_.__LAMBDA","variable":false,"arity":2,"args":[{"node":"KToken","sort":"KVar","token":"x"},{"node":"KToken","sort":"KVar","token":"x"}]}]}}
