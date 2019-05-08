@@ -3,6 +3,7 @@
 
 var Json = require("@glennsl/bs-json/src/Json.bs.js");
 var List = require("bs-platform/lib/js/list.js");
+var $$Array = require("bs-platform/lib/js/array.js");
 var Block = require("bs-platform/lib/js/block.js");
 var React = require("react");
 var Pervasives = require("bs-platform/lib/js/pervasives.js");
@@ -36,13 +37,62 @@ var line$1 = line(Json.parseOrRaise(data));
 
 var idJson = " {\n  \"format\": \"KAST\",\n  \"version\": 1,\n  \"term\": {\n    \"node\": \"KApply\",\n    \"label\": \"<k>\",\n    \"variable\": false,\n    \"arity\": 1,\n    \"args\": [\n      {\n        \"node\": \"KApply\",\n        \"label\": \"lambda_.__LAMBDA\",\n        \"variable\": false,\n        \"arity\": 2,\n        \"args\": [\n          {\n            \"node\": \"KToken\",\n            \"sort\": \"KVar\",\n            \"token\": \"x\"\n          },\n          {\n            \"node\": \"KToken\",\n            \"sort\": \"KVar\",\n            \"token\": \"x\"\n          }\n        ]\n      }\n    ]\n  }\n} ";
 
+function prettyList(ss) {
+  var loop = function (ss) {
+    if (ss) {
+      var ss$1 = ss[1];
+      var s = ss[0];
+      if (ss$1) {
+        return s + (", " + loop(ss$1));
+      } else {
+        return s;
+      }
+    } else {
+      return "";
+    }
+  };
+  return "[" + (loop(ss) + "]");
+}
+
+function prettierList(ss) {
+  if (ss) {
+    var ss$1 = ss[1];
+    var s = ss[0];
+    if (ss$1) {
+      return s + (" " + prettierList(ss$1));
+    } else {
+      return s;
+    }
+  } else {
+    return "";
+  }
+}
+
+function interleave(xs, ys) {
+  if (xs) {
+    return /* :: */[
+            xs[0],
+            interleave(ys, xs[1])
+          ];
+  } else {
+    return ys;
+  }
+}
+
 function kNodePretty(k) {
   if (k.tag) {
-    return k[0] + (": [" + (List.fold_right((function (s1, s2) {
-                      return s1 + (", " + s2);
-                    }), List.map(kNodePretty, k[1]), "") + "]"));
+    return prettierList(interleave(k[0], List.map(kNodePretty, k[1])));
   } else {
     return k[0];
+  }
+}
+
+function cleanLabel(s) {
+  var suffix = "_LAMBDA";
+  if (s.endsWith(suffix)) {
+    return s.substring(0, s.length - suffix.length | 0);
+  } else {
+    return s;
   }
 }
 
@@ -66,7 +116,7 @@ function kNode(param) {
 function kApply(json) {
   var partial_arg = kNode(/* () */0);
   return /* Apply */Block.__(1, [
-            Json_decode.field("label", Json_decode.string, json),
+            $$Array.to_list(cleanLabel(Json_decode.field("label", Json_decode.string, json)).split("_")),
             Json_decode.field("args", (function (param) {
                     return Json_decode.list(partial_arg, param);
                   }), json)
@@ -107,7 +157,11 @@ exports.Decode = Decode;
 exports.data = data;
 exports.line = line$1;
 exports.idJson = idJson;
+exports.prettyList = prettyList;
+exports.prettierList = prettierList;
+exports.interleave = interleave;
 exports.kNodePretty = kNodePretty;
+exports.cleanLabel = cleanLabel;
 exports.IdDecode = IdDecode;
 exports.idDecoded = idDecoded;
 exports.handleClick = handleClick;
