@@ -1,4 +1,4 @@
-/* goal: lambda x . x
+/* goal: lambda x . x */
 let idJson = {| {
   "format": "KAST",
   "version": 1,
@@ -214,19 +214,129 @@ let arithmetic2 = {|
   }
 |};
 
+let arithmetic3 = {|
+  {
+    "format": "KAST",
+    "version": 1,
+    "term": {
+      "node": "KApply",
+      "label": "<k>",
+      "variable": false,
+      "arity": 1,
+      "args": [
+        {
+          "node": "KApply",
+          "label": "#KSequence",
+          "variable": false,
+          "arity": 2,
+          "args": [
+            {
+              "node": "KApply",
+              "label": "_*__LAMBDA",
+              "variable": false,
+              "arity": 2,
+              "args": [
+                {
+                  "node": "KToken",
+                  "sort": "Int",
+                  "token": "2"
+                },
+                {
+                  "node": "KToken",
+                  "sort": "Int",
+                  "token": "3"
+                }
+              ]
+            },
+            {
+              "node": "KApply",
+              "label": "#KSequence",
+              "variable": false,
+              "arity": 2,
+              "args": [
+                {
+                  "node": "KApply",
+                  "label": "#freezer_+__LAMBDA0_",
+                  "variable": false,
+                  "arity": 1,
+                  "args": [
+                    {
+                      "node": "KToken",
+                      "sort": "Int",
+                      "token": "1"
+                    }
+                  ]
+                },
+                {
+                  "node": "KApply",
+                  "label": "#KSequence",
+                  "variable": false,
+                  "arity": 2,
+                  "args": [
+                    {
+                      "node": "KApply",
+                      "label": "#freezer_/__LAMBDA1_",
+                      "variable": false,
+                      "arity": 1,
+                      "args": [
+                        {
+                          "node": "KToken",
+                          "sort": "Int",
+                          "token": "4"
+                        }
+                      ]
+                    },
+                    {
+                      "node": "KApply",
+                      "label": "#freezer_<=__LAMBDA1_",
+                      "variable": false,
+                      "arity": 1,
+                      "args": [
+                        {
+                          "node": "KToken",
+                          "sort": "Int",
+                          "token": "1"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }  
+  |}
 type kNode =
   | Token(string)
   | Apply(list(string), list(kNode))
-  /* node and context. todo: need better representation. steal from previous Theia */
-  | Kont(kNode, kNode)
-  /* like apply, but the list of arguments has a hole at the position specified by the last arg */
-  | EvalContext(list(string), list(kNode), int)
-  | BetterKont(kNode, evalContextList)
-  | Freezer(freezer)
-and freezer = {ops: list(string), args: list(kNode), hole: int}
-and evalContextList =
-  | EvalCons(freezer, evalContextList)
-  | EvalEnd(freezer);
+  | Freezer(list(string), list(kNode), int)
+  | Sequence(kNode, kNode);
+
+type kNodeKontList =
+  | KLToken(string)
+  | KLApply(list(string), list(kNodeKontList))
+  | KLKontList(kNodeKontList, list(freezer))
+and freezer = {ops: list(string), args: list(kNodeKontList), hole: int}
+
+exception CompileError;
+
+let rec compileKNodeToKNodeKontList = (kn : kNode) : kNodeKontList =>
+  switch (kn) {
+  | Token(s) => KLToken(s)
+  | Apply(ss, ks) => KLApply(ss, List.map(compileKNodeToKNodeKontList, ks))
+  | Sequence(Token(s), right) => KLKontList(KLToken(s), compileFreezerList(right))
+  | Sequence(Apply(ss, ks), right) => KLKontList(KLApply(ss, List.map(compileKNodeToKNodeKontList, ks)), compileFreezerList(right))
+  | _ => raise(CompileError)
+  }
+and compileFreezerList = (kn : kNode) : list(freezer) =>
+switch (kn) {
+| Freezer(ops, args, hole) => [{ops, args: List.map(compileKNodeToKNodeKontList, args), hole}]
+| Sequence(left, right) => compileFreezerList(left) @ compileFreezerList(right)
+| _ => raise(CompileError)
+};
 
 let prettyList = (ss) => {
   let rec loop = (ss) =>
@@ -270,12 +380,20 @@ let insert = (x, xs, i) => {
 let rec kNodeDebugPrint = (k) =>
   switch (k) {
   | Token(s) => "Token(" ++ s ++ ")"
-  | Apply(ss, args) => "Apply(" ++ prettyList(ss) ++ ", " ++ prettyList(List.map(kNodeDebugPrint, args)) ++ ")"
-  | Kont(e, ctx) => "Kont(" ++ kNodeDebugPrint(e) ++ ", " ++ kNodeDebugPrint(ctx) ++ ")"
-  | EvalContext(s, args, i) => "EvalContext(" ++ prettyList(s) ++ ", " ++ prettyList(List.map(kNodeDebugPrint, args)) ++ ", " ++ string_of_int(i) ++ ")"
+  | Apply(ss, args) => "Apply(" ++ prettyList(List.map((s) => "\"" ++ s ++ "\"", ss)) ++ ", " ++ prettyList(List.map(kNodeDebugPrint, args)) ++ ")"
+  | Freezer(ops, args, hole) => "Freezer(" ++ prettyList(ops) ++ ", " ++ prettyList(List.map(kNodeDebugPrint, args)) ++ ", " ++ string_of_int(hole) ++ ")"
+  | Sequence(left, right) => "Sequence(" ++ kNodeDebugPrint(left) ++ ", " ++ kNodeDebugPrint(right) ++ ")"
   };
 
-let rec kNodePretty = (k) =>
+let rec knklDebugPrint = (k) =>
+  switch (k) {
+  | KLToken(s) => "KLToken(" ++ s ++ ")"
+  | KLApply(ss, args) => "KLApply(" ++ prettyList(List.map((s) => "\"" ++ s ++ "\"", ss)) ++ ", " ++ prettyList(List.map(knklDebugPrint, args)) ++ ")"
+  | KLKontList(kn, fs) => "KLKontList(\n  " ++ knklDebugPrint(kn) ++ ",\n  " ++ prettyList(List.map(freezerDebugPrint, fs)) ++ ")"
+  }
+and freezerDebugPrint = ({ops, args, hole}) => "freezer(" ++ prettyList(ops) ++ ", " ++ prettyList(List.map(knklDebugPrint, args)) ++ ", " ++ string_of_int(hole) ++ ")"
+
+/* let rec kNodePretty = (k) =>
   switch (k) {
   | Token(s) => s
   /* | Apply(s, args) => prettyList(s) ++ ": " ++ prettyList(List.map(kNodePretty, args)) */
@@ -286,6 +404,24 @@ let rec kNodePretty = (k) =>
     interleave(s, newArgs) |> prettierList
   }
   | _ => Js.log(kNodeDebugPrint(k)); failwith("node pretty found a structure it shouldn't")
+  }; */
+
+
+let rec knklPretty = (k) =>
+  switch (k) {
+  | KLToken(s) => s
+  | KLApply(ops, args) => interleave(ops, List.map(knklPretty, args)) |> prettierList
+  | KLKontList(kn, fs) => prettyKontList(kn, List.rev(fs))
+}
+and prettyFreeze = (f, arg) => {
+  let newArgs = insert("[" ++ arg ++ "]", List.map(knklPretty, f.args), f.hole);
+  interleave(f.ops, newArgs) |> prettierList
+}
+/* TODO: might need to reverse the fs */
+and prettyKontList = (kn, fs) =>
+  switch (fs) {
+  | [] => knklPretty(kn)
+  | [f, ...fs] => prettyFreeze(f, prettyKontList(kn, fs))
   };
 
 let cleanLabel = (s) => {
@@ -310,25 +446,24 @@ module Decode = {
     (field("node", string) |> andThen(
       fun (s) =>
         switch (s) {
-        | "KApply" => kApply
         | "KToken" => kToken
+        | "KApply" => kApply
         | _ => failwith("Unknown node type")
         }
     ))(json)
+  }
+  and kToken = (json) => {
+    Token(json |> field("token", string))
   }
   and kApply = (json) => {
     (field("label", string) |> andThen(
       fun (s) =>
         switch (s) {
-        | "#KSequence" => exprCtx
+        | "#KSequence" => seq
         | _ when Js.String.startsWith("#freezer", s) => freezer
         | _ => apply
         }
     ))(json)
-  }
-  and exprCtx = (json) => {
-    let (e, ctx) = json |> field("args", pair(kNode, kont));
-    BetterKont(e, ctx);
   }
   and apply = (json) => {
     Apply(
@@ -336,47 +471,36 @@ module Decode = {
       json |> field("args", list(kNode))
     )
   }
-  and kont = (json) => {
-    json |> field("label", string) |> andThen(
-      fun (s) =>
-        switch (s) {
-        | "#KSequence" => 
-        let (k, rest) = json |> field("args", pair(kNode, either(kont, freezer)));
-        raise DecodeError
-        | _ => raise DecodeError
-        }
-    )
-  }
-  /* and kontinuation = (json) => {
-    /* json |> field("args", pair(kNode, kNode)) */
-    let (e, ctx) = json |> field("args", pair(kNode, kNode));
-    Kont(e, ctx)
-  } */
   and freezer = (json) => {
     let label = json |> field("label", string);
-    if (!Js.String.)
     let holePos = 1 - (label |> Js.String.charAt(Js.String.length(label) - 2) |> int_of_string);
-    Freezer({
-      ops: label |> extractName |> Js.String.split("_") |> Array.to_list,
-      args: json |> field("args", list(kNode)),
-      hole: holePos
-    })
+    Freezer(
+      label |> extractName |> Js.String.split("_") |> Array.to_list,
+      json |> field("args", list(kNode)),
+      holePos
+    )
   }
-  and kToken = (json) => {
-    Token(json |> field("token", string))
+  and seq = (json) => {
+    let (left, right) = json |> field("args", pair(kNode, kNode));
+    Sequence(left, right)
   };
 
   let kAst = (json) => json |> field("term", kNode);
-};
-
-let idDecoded = idJson |> Json.parseOrRaise |> Decode.kAst;
+};  
 
 let decode = (json) => json |> Json.parseOrRaise |> Decode.kAst;
 
-let handleClick = (_event) => Js.log(arithmetic2 |> decode |> kNodePretty);
+let handleClick = (_event) => {
+  /* Js.log(arithmetic2 |> decode |> kNodeDebugPrint); */
+  Js.log(arithmetic1 |> decode |> compileKNodeToKNodeKontList |> knklDebugPrint);
+  Js.log(arithmetic2 |> decode |> compileKNodeToKNodeKontList |> knklDebugPrint);
+  Js.log(arithmetic1 |> decode |> compileKNodeToKNodeKontList |> knklPretty);
+  Js.log(arithmetic2 |> decode |> compileKNodeToKNodeKontList |> knklPretty);
+  Js.log(arithmetic3 |> decode |> compileKNodeToKNodeKontList |> knklPretty);
+};
 
 [@react.component]
 let make = () =>
   <div onClick={handleClick}>
     {ReasonReact.string("foo bar")}
-  </div>; */
+  </div>;
