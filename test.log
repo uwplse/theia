@@ -1,0 +1,123 @@
+spawn krun tests/lets.lambda --debugger
+[ERROR] Failed to construct terminal; falling back to unsupported
+java.lang.NumberFormatException: For input string: "0x100"
+	at java.lang.NumberFormatException.forInputString(NumberFormatException.java:65)
+	at java.lang.Integer.parseInt(Integer.java:580)
+	at java.lang.Integer.valueOf(Integer.java:766)
+	at jline.internal.InfoCmp.parseInfoCmp(InfoCmp.java:59)
+	at jline.UnixTerminal.parseInfoCmp(UnixTerminal.java:233)
+	at jline.UnixTerminal.<init>(UnixTerminal.java:64)
+	at jline.UnixTerminal.<init>(UnixTerminal.java:49)
+	at sun.reflect.NativeConstructorAccessorImpl.newInstance0(Native Method)
+	at sun.reflect.NativeConstructorAccessorImpl.newInstance(NativeConstructorAccessorImpl.java:62)
+	at sun.reflect.DelegatingConstructorAccessorImpl.newInstance(DelegatingConstructorAccessorImpl.java:45)
+	at java.lang.reflect.Constructor.newInstance(Constructor.java:423)
+	at java.lang.Class.newInstance(Class.java:442)
+	at jline.TerminalFactory.getFlavor(TerminalFactory.java:209)
+	at jline.TerminalFactory.create(TerminalFactory.java:100)
+	at jline.TerminalFactory.get(TerminalFactory.java:184)
+	at jline.TerminalFactory.get(TerminalFactory.java:190)
+	at jline.console.ConsoleReader.<init>(ConsoleReader.java:240)
+	at jline.console.ConsoleReader.<init>(ConsoleReader.java:232)
+	at jline.console.ConsoleReader.<init>(ConsoleReader.java:220)
+	at org.kframework.krun.modes.DebugMode.DebugExecutionMode.getConsoleReader(DebugExecutionMode.java:68)
+	at org.kframework.krun.modes.DebugMode.DebugExecutionMode.execute(DebugExecutionMode.java:93)
+	at org.kframework.krun.KRun.run(KRun.java:88)
+	at org.kframework.krun.KRunFrontEnd.run(KRunFrontEnd.java:93)
+	at org.kframework.main.FrontEnd.main(FrontEnd.java:59)
+	at org.kframework.main.Main.runApplication(Main.java:118)
+	at org.kframework.main.Main.runApplication(Main.java:107)
+	at org.kframework.main.Main.main(Main.java:53)
+
+KDebug> p
+s
+initKCell ( $IO |-> "off"
+$PGM |-> let a = 1 in let b = 2 in let c = 3 in let d = 4 in ( ( a + b * c ) / d <= a )
+$STDIN |-> "\n" )
+KDebug> 1 Step(s) Taken.
+KDebug> p
+s
+<k>
+  ( lambda b . ( ( lambda c . ( ( lambda d . ( ( 1 + b * c ) / d <= 1 ) ) 4 ) ) 3 ) ) 2
+</k>
+KDebug> 1 Step(s) Taken.
+KDebug> p
+s
+<k>
+  ( lambda c . ( ( lambda d . ( ( 1 + 2 * c ) / d <= 1 ) ) 4 ) ) 3
+</k>
+KDebug> 1 Step(s) Taken.
+KDebug> p
+s
+<k>
+  ( lambda d . ( ( 1 + 2 * 3 ) / d <= 1 ) ) 4
+</k>
+KDebug> 1 Step(s) Taken.
+KDebug> p
+s
+<k>
+  ( 1 + 2 * 3 ) / 4 <= 1
+</k>
+KDebug> 1 Step(s) Taken.
+KDebug> p
+s
+<k>
+  ( 1 + 2 * 3 ) / 4 ~> #freezer_<=__LAMBDA1_ ( 1 )
+</k>
+KDebug> 1 Step(s) Taken.
+KDebug> p
+s
+<k>
+  1 + 2 * 3 ~> #freezer_/__LAMBDA1_ ( 4 ) ~> #freezer_<=__LAMBDA1_ ( 1 )
+</k>
+KDebug> 1 Step(s) Taken.
+p
+s
+KDebug> <k>
+  2 * 3 ~> #freezer_+__LAMBDA0_ ( 1 ) ~> #freezer_/__LAMBDA1_ ( 4 ) ~> #freezer_<=__LAMBDA1_ ( 1 )
+</k>
+KDebug> 1 Step(s) Taken.
+p
+s
+KDebug> <k>
+  6 ~> #freezer_+__LAMBDA0_ ( 1 ) ~> #freezer_/__LAMBDA1_ ( 4 ) ~> #freezer_<=__LAMBDA1_ ( 1 )
+</k>
+KDebug> 1 Step(s) Taken.
+KDebug> p
+s
+<k>
+  1 + 6 ~> #freezer_/__LAMBDA1_ ( 4 ) ~> #freezer_<=__LAMBDA1_ ( 1 )
+</k>
+KDebug> 1 Step(s) Taken.
+KDebug> p
+s
+<k>
+  7 ~> #freezer_/__LAMBDA1_ ( 4 ) ~> #freezer_<=__LAMBDA1_ ( 1 )
+</k>
+KDebug> 1 Step(s) Taken.
+KDebug> p
+s
+<k>
+  7 / 4 ~> #freezer_<=__LAMBDA1_ ( 1 )
+</k>
+KDebug> 1 Step(s) Taken.
+KDebug> p
+s
+<k>
+  1 ~> #freezer_<=__LAMBDA1_ ( 1 )
+</k>
+KDebug> 1 Step(s) Taken.
+KDebug> p
+s
+<k>
+  1 <= 1
+</k>
+KDebug> 1 Step(s) Taken.
+KDebug> p
+s
+<k>
+  true
+</k>
+KDebug> Attempted 1 step(s). Took 0 steps(s).
+Final State Reached
+KDebug> 

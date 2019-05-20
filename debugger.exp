@@ -1,0 +1,23 @@
+#!/usr/bin/expect -f
+
+set timeout -1
+log_file test.log
+
+cd semantics/lambda
+
+spawn krun tests/lets.lambda --debugger
+
+expect "KDebug>"
+send -- "p\r"
+send -- "s\r"
+
+expect {
+  "Final State Reached\r" {
+    exit
+  }
+  "1 Step(s) Taken.\r" {
+    send -- "p\r"
+    send -- "s\r"
+    exp_continue
+  }
+}
