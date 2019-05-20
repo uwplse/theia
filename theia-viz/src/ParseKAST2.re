@@ -40,11 +40,11 @@ let prettyList = (ss) => {
 let prettierList = (ss) => {
   let rec loop = (ss) =>
     switch (ss) {
-    | [] => ""
-    | [s] => s
-    | [s, ...ss] => s ++ " " ++ loop(ss)
+    | [] => <> </>
+    | [s] => <> s </>
+    | [s, ...ss] => <> s {React.string(" ")} {loop(ss)} </>
     };
-  "(" ++ loop(ss) ++ ")"
+  <> {React.string("(")} {loop(ss)} {React.string(")")} </>
 };
 
 let rec interleave = (xs, ys) =>
@@ -95,16 +95,18 @@ and freezerDebugPrint = ({ops, args, hole}) => "freezer(" ++ prettyList(ops) ++ 
   | _ => Js.log(kNodeDebugPrint(k)); failwith("node pretty found a structure it shouldn't")
   }; */
 
+let render_open_brack = <span style=(ReactDOMRe.Style.make(~color="Crimson", ()))> {ReasonReact.string("[")} </span>;
+let render_close_brack = <span style=(ReactDOMRe.Style.make(~color="Crimson", ()))> {ReasonReact.string("]")} </span>;
 
 let rec knklPretty = (k) =>
   switch (k) {
-  | KLToken(s) => s
-  | KLApply(ops, args) => interleave(ops, List.map(knklPretty, args)) |> prettierList
+  | KLToken(s) => <> {React.string(s)} </>
+  | KLApply(ops, args) => interleave(List.map(React.string, ops), List.map(knklPretty, args)) |> prettierList
   | KLKontList(kn, fs) => prettyKontList(kn, List.rev(fs))
 }
 and prettyFreeze = (f, arg) => {
-  let newArgs = insert("[" ++ arg ++ "]", List.map(knklPretty, f.args), f.hole);
-  interleave(f.ops, newArgs) |> prettierList
+  let newArgs = insert(<> render_open_brack arg render_close_brack </>, List.map(knklPretty, f.args), f.hole);
+  interleave(List.map(React.string, f.ops), newArgs) |> prettierList
 }
 /* TODO: might need to reverse the fs */
 and prettyKontList = (kn, fs) =>
@@ -189,23 +191,67 @@ let fetchDebuggerOutput = (file, callback) => {
   Js.Promise.(
     Fetch.fetch(file)
     |> then_(Fetch.Response.json)
-    |> then_(json => { callback(json); resolve(); })
+    |> then_(json => { resolve(callback(json)) })
   );
 };
 
+
+type configuration = {k: ReasonReact.reactElement};
+
+type state = {currentConfig: option(ReasonReact.reactElement)};
+
+type action =
+  | UpdateMachineState(configuration);
+
 /* TODO: error handling */
-let handleClick = (_event) => {
+let handleClick = (dispatch, _event) => {
   open Data;
   /* todo: arithmetic0, which is a special case */
   /* promise loop: https://stackoverflow.com/a/40329190 */
-  let callback = (json) => Js.log(json |> Decode.kAst |> compileKNodeToKNodeKontList |> knklPretty);
-  let path = "http://localhost:8080/semantics/lambda/debugger-output/arithmetic/";
-  Js.Promise.((1--10) |> List.fold_left((p, i) => p |> then_(() => fetchDebuggerOutput(path ++ string_of_int(i) ++ ".json", callback)), resolve(), _)) |> ignore;
+  let callback = (json) => json |> Decode.kAst |> compileKNodeToKNodeKontList |> knklPretty;
+  
+  /* identity */
+  /* let path = "http://localhost:8080/semantics/lambda/debugger-output/identity/";
+  Js.Promise.((1--1) |> List.fold_left((p, i) => p |> then_(() => fetchDebuggerOutput(path ++ string_of_int(i) ++ ".json", callback)), resolve(), _)) |> ignore; */
+
+  /* arithmetic */
+  /* let path = "http://localhost:8080/semantics/lambda/debugger-output/arithmetic/";
+  Js.Promise.((1--10) |> List.fold_left((p, i) => p |> then_(() => fetchDebuggerOutput(path ++ string_of_int(i) ++ ".json", callback)), resolve(), _)) |> ignore; */
+
+  /* lets */
+  /* let path = "http://localhost:8080/semantics/lambda/debugger-output/lets/";
+  Js.Promise.((1--14) |> List.fold_left((p, i) => p |> then_(() => fetchDebuggerOutput(path ++ string_of_int(i) ++ ".json", callback)), resolve(), _)) |> ignore; */
+
+  /* factorial-letrec */
+  let path = "http://localhost:8080/semantics/lambda/debugger-output/factorial-letrec/";
+  Js.Promise.((1--135) |> List.fold_left(
+    (p, i) => p |> then_((s1) => {
+      fetchDebuggerOutput(path ++ string_of_int(i) ++ ".json", callback) |> then_(s2 => resolve(<> s1 <div> s2 </div> </>))
+    }),
+    resolve(<> </>),
+    _)
+    /* TODO: this should somehow modify the state of the component instead of logging */
+    /* need to dispatch */
+    |> then_((s) => {dispatch(UpdateMachineState({k: s})); resolve()}))
+    |> ignore;
 };
 
 [@react.component]
 let make = () => {
-  <div onClick={handleClick}>
-    {ReasonReact.string("foo bar")}
+  let (state, dispatch) = React.useReducer((_state, action) =>
+  switch (action) {
+  | UpdateMachineState(s) => {currentConfig: Some(s.k)}
+  }, {currentConfig: None});
+
+  <div>
+    <button onClick={handleClick(dispatch)}>
+      {ReasonReact.string("foo bar")}
+    </button>
+    {
+      switch (state.currentConfig) {
+      | None => <> {React.string("No state!")} </>
+      | Some(s) => s
+      }
+    }
   </div>;
 };
