@@ -179,35 +179,28 @@ module Decode = {
 
 let decode = (json) => json |> Json.parseOrRaise |> Decode.kAst;
 
+/* https://stackoverflow.com/a/244104 */
+let (--) = (i, j) => {
+    let rec aux = (n, acc) => if (n < i) { acc } else { aux(n - 1, [n, ...acc]) };
+    aux(j, [])
+};
+
 let fetchDebuggerOutput = (file, callback) => {
   Js.Promise.(
     Fetch.fetch(file)
     |> then_(Fetch.Response.json)
     |> then_(json => { callback(json); resolve(); })
-    |> ignore
-  ); /* TODO: error handling */
+  );
 };
 
-/* TODO: because of promises, these files don't print in the right order */
+/* TODO: error handling */
 let handleClick = (_event) => {
   open Data;
   /* todo: arithmetic0, which is a special case */
-  for (i in 1 to 10) {
-    fetchDebuggerOutput("http://localhost:8080/semantics/lambda/debugger-output/arithmetic/" ++ string_of_int(i) ++ ".json", (json) => Js.log(json |> Decode.kAst |> compileKNodeToKNodeKontList |> knklPretty));
-  };
-  /* Js.log(arithmetic1 |> decode |> compileKNodeToKNodeKontList |> knklPretty);
-  Js.log(arithmetic2 |> decode |> compileKNodeToKNodeKontList |> knklPretty);
-  Js.log(arithmetic3 |> decode |> compileKNodeToKNodeKontList |> knklPretty);
-  Js.log(arithmetic4 |> decode |> compileKNodeToKNodeKontList |> knklPretty); */
-};
-
-/* TODO: this component is very ugly probably. */
-
-type action =
-  | Fetched(Js.Json.t);
-
-type state = {
-  data: option(Js.Json.t)
+  /* promise loop: https://stackoverflow.com/a/40329190 */
+  let callback = (json) => Js.log(json |> Decode.kAst |> compileKNodeToKNodeKontList |> knklPretty);
+  let path = "http://localhost:8080/semantics/lambda/debugger-output/arithmetic/";
+  Js.Promise.((1--10) |> List.fold_left((p, i) => p |> then_(() => fetchDebuggerOutput(path ++ string_of_int(i) ++ ".json", callback)), resolve(), _)) |> ignore;
 };
 
 [@react.component]
