@@ -195,7 +195,6 @@ let fetchDebuggerOutput = (file, callback) => {
   );
 };
 
-
 type configuration = {k: ReasonReact.reactElement};
 
 type state = {currentConfig: option(ReasonReact.reactElement)};
@@ -204,34 +203,17 @@ type action =
   | UpdateMachineState(configuration);
 
 /* TODO: error handling */
-let handleClick = (dispatch, _event) => {
-  open Data;
-  /* todo: arithmetic0, which is a special case */
-  /* promise loop: https://stackoverflow.com/a/40329190 */
+let handleClick = (dispatch, dir, numFiles, _event) => {
+  /* todo: handle the initial state, which is a special case */
   let callback = (json) => json |> Decode.kAst |> compileKNodeToKNodeKontList |> knklPretty;
-  
-  /* identity */
-  /* let path = "http://localhost:8080/semantics/lambda/debugger-output/identity/";
-  Js.Promise.((1--1) |> List.fold_left((p, i) => p |> then_(() => fetchDebuggerOutput(path ++ string_of_int(i) ++ ".json", callback)), resolve(), _)) |> ignore; */
-
-  /* arithmetic */
-  /* let path = "http://localhost:8080/semantics/lambda/debugger-output/arithmetic/";
-  Js.Promise.((1--10) |> List.fold_left((p, i) => p |> then_(() => fetchDebuggerOutput(path ++ string_of_int(i) ++ ".json", callback)), resolve(), _)) |> ignore; */
-
-  /* lets */
-  /* let path = "http://localhost:8080/semantics/lambda/debugger-output/lets/";
-  Js.Promise.((1--14) |> List.fold_left((p, i) => p |> then_(() => fetchDebuggerOutput(path ++ string_of_int(i) ++ ".json", callback)), resolve(), _)) |> ignore; */
-
-  /* factorial-letrec */
-  let path = "http://localhost:8080/semantics/lambda/debugger-output/factorial-letrec/";
-  Js.Promise.((1--135) |> List.fold_left(
+  let path = "http://localhost:8080/semantics/lambda/debugger-output/" ++ dir ++ "/";
+  /* promise loop: https://stackoverflow.com/a/40329190 */
+  Js.Promise.((1--numFiles) |> List.fold_left(
     (p, i) => p |> then_((s1) => {
       fetchDebuggerOutput(path ++ string_of_int(i) ++ ".json", callback) |> then_(s2 => resolve(<> s1 <div> s2 </div> </>))
     }),
     resolve(<> </>),
     _)
-    /* TODO: this should somehow modify the state of the component instead of logging */
-    /* need to dispatch */
     |> then_((s) => {dispatch(UpdateMachineState({k: s})); resolve()}))
     |> ignore;
 };
@@ -244,7 +226,7 @@ let make = () => {
   }, {currentConfig: None});
 
   <div>
-    <button onClick={handleClick(dispatch)}>
+    <button onClick={handleClick(dispatch, "factorial-letrec", 135)}>
       {ReasonReact.string("foo bar")}
     </button>
     {
