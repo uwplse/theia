@@ -2,4 +2,4 @@ ReactDOMRe.renderToElementWithId(<Component1 message="Hello! Click this text." /
 
 ReactDOMRe.renderToElementWithId(<Component2 greeting="Hello!" />, "index2");
 
-Printf.printf("foo");
+ReactDOMRe.renderToElementWithId(<ParseKAST2 />, "index3");
