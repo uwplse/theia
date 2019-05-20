@@ -21,6 +21,8 @@ module.exports = {
     compress: true,
     contentBase: outputDir,
     port: process.env.PORT || 8000,
-    historyApiFallback: true
-  }
+    historyApiFallback: true,
+    headers: { 'Access-Control-Allow-Origin': '*', "Access-Control-Allow-Credentials" : true 
+  }, /* Allows reading the local file system and other things. Potentially very dangerous!! */
+  },
 };

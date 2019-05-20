@@ -1,314 +1,3 @@
-/* goal: lambda x . x */
-let idJson = {| {
-  "format": "KAST",
-  "version": 1,
-  "term": {
-    "node": "KApply",
-    "label": "<k>",
-    "variable": false,
-    "arity": 1,
-    "args": [
-      {
-        "node": "KApply",
-        "label": "lambda_.__LAMBDA",
-        "variable": false,
-        "arity": 2,
-        "args": [
-          {
-            "node": "KToken",
-            "sort": "KVar",
-            "token": "x"
-          },
-          {
-            "node": "KToken",
-            "sort": "KVar",
-            "token": "x"
-          }
-        ]
-      }
-    ]
-  }
-} |};
-
-/* input
-<k>
-  ( 1 + 2 * 3 ) / 4 ~> #freezer_<=__LAMBDA1_ ( 1 )
-</k>
-*/
-/* goal
-[( 1 + 2 * 3 ) / 4] <= 1
-*/
-
-let arithmetic1 = {| {
-  "format": "KAST",
-  "version": 1,
-  "term": {
-    "node": "KApply",
-    "label": "<k>",
-    "variable": false,
-    "arity": 1,
-    "args": [
-      {
-        "node": "KApply",
-        "label": "#KSequence",
-        "variable": false,
-        "arity": 2,
-        "args": [
-          {
-            "node": "KApply",
-            "label": "_/__LAMBDA",
-            "variable": false,
-            "arity": 2,
-            "args": [
-              {
-                "node": "KApply",
-                "label": "_+__LAMBDA",
-                "variable": false,
-                "arity": 2,
-                "args": [
-                  {
-                    "node": "KToken",
-                    "sort": "Int",
-                    "token": "1"
-                  },
-                  {
-                    "node": "KApply",
-                    "label": "_*__LAMBDA",
-                    "variable": false,
-                    "arity": 2,
-                    "args": [
-                      {
-                        "node": "KToken",
-                        "sort": "Int",
-                        "token": "2"
-                      },
-                      {
-                        "node": "KToken",
-                        "sort": "Int",
-                        "token": "3"
-                      }
-                    ]
-                  }
-                ]
-              },
-              {
-                "node": "KToken",
-                "sort": "Int",
-                "token": "4"
-              }
-            ]
-          },
-          {
-            "node": "KApply",
-            "label": "#freezer_<=__LAMBDA1_",
-            "variable": false,
-            "arity": 1,
-            "args": [
-              {
-                "node": "KToken",
-                "sort": "Int",
-                "token": "1"
-              }
-            ]
-          }
-        ]
-      }
-    ]
-  }
-} |}
-
-/* input
-<k>
-  1 + 2 * 3 ~> #freezer_/__LAMBDA1_ ( 4 ) ~> #freezer_<=__LAMBDA1_ ( 1 )
-</k>
-*/
-/* goal
-[[( 1 + 2 * 3 )] / 4] <= 1
-*/
-
-let arithmetic2 = {|
-  {
-    "format": "KAST",
-    "version": 1,
-    "term": {
-      "node": "KApply",
-      "label": "<k>",
-      "variable": false,
-      "arity": 1,
-      "args": [
-        {
-          "node": "KApply",
-          "label": "#KSequence",
-          "variable": false,
-          "arity": 2,
-          "args": [
-            {
-              "node": "KApply",
-              "label": "_+__LAMBDA",
-              "variable": false,
-              "arity": 2,
-              "args": [
-                {
-                  "node": "KToken",
-                  "sort": "Int",
-                  "token": "1"
-                },
-                {
-                  "node": "KApply",
-                  "label": "_*__LAMBDA",
-                  "variable": false,
-                  "arity": 2,
-                  "args": [
-                    {
-                      "node": "KToken",
-                      "sort": "Int",
-                      "token": "2"
-                    },
-                    {
-                      "node": "KToken",
-                      "sort": "Int",
-                      "token": "3"
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "node": "KApply",
-              "label": "#KSequence",
-              "variable": false,
-              "arity": 2,
-              "args": [
-                {
-                  "node": "KApply",
-                  "label": "#freezer_/__LAMBDA1_",
-                  "variable": false,
-                  "arity": 1,
-                  "args": [
-                    {
-                      "node": "KToken",
-                      "sort": "Int",
-                      "token": "4"
-                    }
-                  ]
-                },
-                {
-                  "node": "KApply",
-                  "label": "#freezer_<=__LAMBDA1_",
-                  "variable": false,
-                  "arity": 1,
-                  "args": [
-                    {
-                      "node": "KToken",
-                      "sort": "Int",
-                      "token": "1"
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    }
-  }
-|};
-
-let arithmetic3 = {|
-  {
-    "format": "KAST",
-    "version": 1,
-    "term": {
-      "node": "KApply",
-      "label": "<k>",
-      "variable": false,
-      "arity": 1,
-      "args": [
-        {
-          "node": "KApply",
-          "label": "#KSequence",
-          "variable": false,
-          "arity": 2,
-          "args": [
-            {
-              "node": "KApply",
-              "label": "_*__LAMBDA",
-              "variable": false,
-              "arity": 2,
-              "args": [
-                {
-                  "node": "KToken",
-                  "sort": "Int",
-                  "token": "2"
-                },
-                {
-                  "node": "KToken",
-                  "sort": "Int",
-                  "token": "3"
-                }
-              ]
-            },
-            {
-              "node": "KApply",
-              "label": "#KSequence",
-              "variable": false,
-              "arity": 2,
-              "args": [
-                {
-                  "node": "KApply",
-                  "label": "#freezer_+__LAMBDA0_",
-                  "variable": false,
-                  "arity": 1,
-                  "args": [
-                    {
-                      "node": "KToken",
-                      "sort": "Int",
-                      "token": "1"
-                    }
-                  ]
-                },
-                {
-                  "node": "KApply",
-                  "label": "#KSequence",
-                  "variable": false,
-                  "arity": 2,
-                  "args": [
-                    {
-                      "node": "KApply",
-                      "label": "#freezer_/__LAMBDA1_",
-                      "variable": false,
-                      "arity": 1,
-                      "args": [
-                        {
-                          "node": "KToken",
-                          "sort": "Int",
-                          "token": "4"
-                        }
-                      ]
-                    },
-                    {
-                      "node": "KApply",
-                      "label": "#freezer_<=__LAMBDA1_",
-                      "variable": false,
-                      "arity": 1,
-                      "args": [
-                        {
-                          "node": "KToken",
-                          "sort": "Int",
-                          "token": "1"
-                        }
-                      ]
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    }
-  }  
-  |}
 type kNode =
   | Token(string)
   | Apply(list(string), list(kNode))
@@ -490,17 +179,40 @@ module Decode = {
 
 let decode = (json) => json |> Json.parseOrRaise |> Decode.kAst;
 
+let fetchDebuggerOutput = (file, callback) => {
+  Js.Promise.(
+    Fetch.fetch(file)
+    |> then_(Fetch.Response.json)
+    |> then_(json => { callback(json); resolve(); })
+    |> ignore
+  ); /* TODO: error handling */
+};
+
+/* TODO: because of promises, these files don't print in the right order */
 let handleClick = (_event) => {
-  /* Js.log(arithmetic2 |> decode |> kNodeDebugPrint); */
-  Js.log(arithmetic1 |> decode |> compileKNodeToKNodeKontList |> knklDebugPrint);
-  Js.log(arithmetic2 |> decode |> compileKNodeToKNodeKontList |> knklDebugPrint);
-  Js.log(arithmetic1 |> decode |> compileKNodeToKNodeKontList |> knklPretty);
+  open Data;
+  /* todo: arithmetic0, which is a special case */
+  for (i in 1 to 10) {
+    fetchDebuggerOutput("http://localhost:8080/semantics/lambda/debugger-output/arithmetic/" ++ string_of_int(i) ++ ".json", (json) => Js.log(json |> Decode.kAst |> compileKNodeToKNodeKontList |> knklPretty));
+  };
+  /* Js.log(arithmetic1 |> decode |> compileKNodeToKNodeKontList |> knklPretty);
   Js.log(arithmetic2 |> decode |> compileKNodeToKNodeKontList |> knklPretty);
   Js.log(arithmetic3 |> decode |> compileKNodeToKNodeKontList |> knklPretty);
+  Js.log(arithmetic4 |> decode |> compileKNodeToKNodeKontList |> knklPretty); */
+};
+
+/* TODO: this component is very ugly probably. */
+
+type action =
+  | Fetched(Js.Json.t);
+
+type state = {
+  data: option(Js.Json.t)
 };
 
 [@react.component]
-let make = () =>
+let make = () => {
   <div onClick={handleClick}>
     {ReasonReact.string("foo bar")}
   </div>;
+};

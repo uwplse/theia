@@ -16,7 +16,8 @@
   "namespace": true,
   "bs-dependencies": [
     "reason-react",
-    "@glennsl/bs-json"
+    "@glennsl/bs-json",
+    "bs-fetch"
   ],
   "refmt": 3
 }
