@@ -3,11 +3,12 @@ Automatically Visualizing Program Execution
 
 To setup:
 
-First go into `k` and follow the instructions there to install it. This works best on a Linux machine.
+First download and install `k`: http://www.kframework.org/index.php/K_tool_binaries.
 
 In `theia-viz`
 1. Run `npm install`. This installs the dependencies.
-2. Run `chmod +x python-server.py`. This allows bash to execute the python server.
+2. Run `chmod +x python-server.py`. This allows bash to execute the python server code.
+3. Run `chmod +x log-state.sh`. This allows bash to execute the code that logs the state from `k`.
 
 To run:
 

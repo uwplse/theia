@@ -1,8 +1,9 @@
+/* Like ParseKAST2, but parses flattened KSequence nodes. */
 type kNode =
   | Token(string)
   | Apply(list(string), list(kNode))
   | Freezer(list(string), list(kNode), int)
-  | Sequence(kNode, kNode);
+  | Sequence(list(kNode));
 
 type kNodeKontList =
   | KLToken(string)
@@ -16,15 +17,15 @@ let rec compileKNodeToKNodeKontList = (kn : kNode) : kNodeKontList =>
   switch (kn) {
   | Token(s) => KLToken(s)
   | Apply(ss, ks) => KLApply(ss, List.map(compileKNodeToKNodeKontList, ks))
-  | Sequence(Token(s), right) => KLKontList(KLToken(s), compileFreezerList(right))
-  | Sequence(Apply(ss, ks), right) => KLKontList(KLApply(ss, List.map(compileKNodeToKNodeKontList, ks)), compileFreezerList(right))
+  | Sequence([]) => raise(CompileError)
+  | Sequence([e, ...fs]) => KLKontList(compileKNodeToKNodeKontList(e), List.map(compileFreezer, fs))
   | _ => raise(CompileError)
   }
-and compileFreezerList = (kn : kNode) : list(freezer) =>
-switch (kn) {
-| Freezer(ops, args, hole) => [{ops, args: List.map(compileKNodeToKNodeKontList, args), hole}]
-| Sequence(left, right) => compileFreezerList(left) @ compileFreezerList(right)
-| _ => raise(CompileError)
+and compileFreezer = (kn) : freezer => {
+  switch (kn) {
+  | Freezer(ops, args, hole) => {ops, args: List.map(compileKNodeToKNodeKontList, args), hole}
+  | _ => raise(CompileError)
+  }
 };
 
 let prettyList = (ss) => {
@@ -71,7 +72,7 @@ let rec kNodeDebugPrint = (k) =>
   | Token(s) => "Token(" ++ s ++ ")"
   | Apply(ss, args) => "Apply(" ++ prettyList(List.map((s) => "\"" ++ s ++ "\"", ss)) ++ ", " ++ prettyList(List.map(kNodeDebugPrint, args)) ++ ")"
   | Freezer(ops, args, hole) => "Freezer(" ++ prettyList(ops) ++ ", " ++ prettyList(List.map(kNodeDebugPrint, args)) ++ ", " ++ string_of_int(hole) ++ ")"
-  | Sequence(left, right) => "Sequence(" ++ kNodeDebugPrint(left) ++ ", " ++ kNodeDebugPrint(right) ++ ")"
+  | Sequence(l) => "Sequence(" ++ prettyList(List.map(kNodeDebugPrint, l)) ++ ")"
   };
 
 let rec knklDebugPrint = (k) =>
@@ -81,19 +82,6 @@ let rec knklDebugPrint = (k) =>
   | KLKontList(kn, fs) => "KLKontList(\n  " ++ knklDebugPrint(kn) ++ ",\n  " ++ prettyList(List.map(freezerDebugPrint, fs)) ++ ")"
   }
 and freezerDebugPrint = ({ops, args, hole}) => "freezer(" ++ prettyList(ops) ++ ", " ++ prettyList(List.map(knklDebugPrint, args)) ++ ", " ++ string_of_int(hole) ++ ")"
-
-/* let rec kNodePretty = (k) =>
-  switch (k) {
-  | Token(s) => s
-  /* | Apply(s, args) => prettyList(s) ++ ": " ++ prettyList(List.map(kNodePretty, args)) */
-  | Apply(s, args) => interleave(s, List.map(kNodePretty, args)) |> prettierList
-  /* TODO: need to steal from prev Theia */
-  | Kont(e, EvalContext(s, args, i)) => {
-    let newArgs = insert("[" ++ kNodePretty(e) ++ "]", List.map(kNodePretty, args), i);
-    interleave(s, newArgs) |> prettierList
-  }
-  | _ => Js.log(kNodeDebugPrint(k)); failwith("node pretty found a structure it shouldn't")
-  }; */
 
 let render_open_brack = <span style=(ReactDOMRe.Style.make(~color="Crimson", ()))> {ReasonReact.string("[")} </span>;
 let render_close_brack = <span style=(ReactDOMRe.Style.make(~color="Crimson", ()))> {ReasonReact.string("]")} </span>;
@@ -172,8 +160,7 @@ module Decode = {
     )
   }
   and seq = (json) => {
-    let (left, right) = json |> field("args", pair(kNode, kNode));
-    Sequence(left, right)
+    Sequence(json |> field("args", list(kNode)));
   };
 
   let kAst = (json) => json |> field("term", kNode);
@@ -221,9 +208,11 @@ type action =
 
 /* TODO: error handling */
 let handleClick = (dispatch, _event) => {
-  let path = "http://localhost:8080/arithmetic-log/";
+  let path = "http://localhost:8080/arithmetic-log-flattened/";
   let log = "execute-423906835.log";
   let callback = (json) => json |> Decode.kAst |> compileKNodeToKNodeKontList |> knklPretty;
+  /* let callback = (json) => json |> Decode.kAst |> kNodeDebugPrint; */
+  /* let callback = (json) => json |> Json.stringify; */
   let fetchedLogStateIDs = fetchLogStateIDs(path ++ log);
   Js.Promise.(fetchedLogStateIDs |> then_((fetched) => fetched |> List.fold_left(
     (p, file) => p |> then_((s1) => {
