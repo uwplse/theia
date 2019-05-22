@@ -1,0 +1,5 @@
+lambda-kompiled/timestamp : \
+    /home/joshpoll/theia/k/k-distribution/target/release/k/include/builtin/kast.k \
+    /home/joshpoll/theia/k/k-distribution/target/release/k/include/builtin/domains.k \
+    /home/joshpoll/theia/k/k-distribution/tutorial/1_k/3_lambda++/lesson_6/./lambda.k \
+
