@@ -187,11 +187,28 @@ let (--) = (i, j) => {
     aux(j, [])
 };
 
-let fetchDebuggerOutput = (file, callback) => {
+let fetchLoggedStates = (file, callback) => {
   Js.Promise.(
     Fetch.fetch(file)
     |> then_(Fetch.Response.json)
     |> then_(json => { resolve(callback(json)) })
+  );
+};
+
+let fetchLogStateIDs = (file) => {
+  Js.Promise.(
+    Fetch.fetch(file)
+    |> then_(Fetch.Response.text)
+    |> then_((text) => { 
+      let trimmedText = text |> Js.String.trim
+                             |> Js.String.splitByRe([%bs.re "/\\n/g"])
+                             |> Array.map((s) => s |> Belt_Option.getExn |> Js.String.splitByRe([%bs.re "/\\s|_/g"]))
+                             |> Array.to_list
+                             |> List.filter((arr) => Array.length(arr) >= 4)
+                             |> Array.of_list;
+      let states = trimmedText |> Array.map((arr) => arr[2]) |> Array.map(Belt_Option.getExn) |> Array.to_list;
+      resolve(states)
+    })
   );
 };
 
@@ -204,17 +221,17 @@ type action =
 
 /* TODO: error handling */
 let handleClick = (dispatch, dir, numFiles, _event) => {
-  /* todo: handle the initial state, which is a special case */
+  let path = "http://localhost:8080/if-log/";
+  let log = "execute-1327674215.log";
   let callback = (json) => json |> Decode.kAst |> compileKNodeToKNodeKontList |> knklPretty;
-  let path = "http://localhost:8080/semantics/lambda/debugger-output/" ++ dir ++ "/";
-  /* promise loop: https://stackoverflow.com/a/40329190 */
-  Js.Promise.((1--numFiles) |> List.fold_left(
-    (p, i) => p |> then_((s1) => {
-      fetchDebuggerOutput(path ++ string_of_int(i) ++ ".json", callback) |> then_(s2 => resolve(<> s1 <div> s2 </div> </>))
+  let fetchedLogStateIDs = fetchLogStateIDs(path ++ log);
+  Js.Promise.(fetchedLogStateIDs |> then_((fetched) => fetched |> List.fold_left(
+    (p, file) => p |> then_((s1) => {
+      fetchLoggedStates(path ++ "null_blobs/" ++ file ++ ".json", callback) |> then_(s2 => resolve(<> s1 <div> s2 </div> </>))
     }),
     resolve(<> </>),
     _)
-    |> then_((s) => {dispatch(UpdateMachineState({k: s})); resolve()}))
+    |> then_((s) => {dispatch(UpdateMachineState({k: s})); resolve()})))
     |> ignore;
 };
 
