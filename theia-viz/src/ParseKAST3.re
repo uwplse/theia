@@ -208,11 +208,11 @@ type action =
 
 /* TODO: error handling */
 let handleClick = (dispatch, _event) => {
-  let path = "http://localhost:8080/arithmetic-log-flattened/";
-  let log = "execute-423906835.log";
-  let callback = (json) => json |> Decode.kAst |> compileKNodeToKNodeKontList |> knklPretty;
-  /* let callback = (json) => json |> Decode.kAst |> kNodeDebugPrint; */
-  /* let callback = (json) => json |> Json.stringify; */
+  let path = "http://localhost:8080/lets++-uberflat-log/";
+  let log = "execute-146023363.log";
+  /* let callback = (json) => json |> Decode.kAst |> compileKNodeToKNodeKontList |> knklPretty; */
+  /* let callback = (json) => json |> Decode.kAst |> kNodeDebugPrint |> React.string; */
+  let callback = (json) => json |> Json.stringify |> React.string;
   let fetchedLogStateIDs = fetchLogStateIDs(path ++ log);
   Js.Promise.(fetchedLogStateIDs |> then_((fetched) => fetched |> List.fold_left(
     (p, file) => p |> then_((s1) => {
