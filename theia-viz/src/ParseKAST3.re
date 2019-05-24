@@ -1,32 +1,15 @@
-/* Like ParseKAST2, but parses flattened KSequence nodes. */
 type kNode =
   | Token(string)
   | Apply(list(string), list(kNode))
   | Freezer(list(string), list(kNode), int)
-  | Sequence(list(kNode));
+  | Sequence(kNode, kNode)
+  | Map(list((kNode, kNode)));
 
 type kNodeKontList =
   | KLToken(string)
   | KLApply(list(string), list(kNodeKontList))
   | KLKontList(kNodeKontList, list(freezer))
 and freezer = {ops: list(string), args: list(kNodeKontList), hole: int}
-
-exception CompileError;
-
-let rec compileKNodeToKNodeKontList = (kn : kNode) : kNodeKontList =>
-  switch (kn) {
-  | Token(s) => KLToken(s)
-  | Apply(ss, ks) => KLApply(ss, List.map(compileKNodeToKNodeKontList, ks))
-  | Sequence([]) => raise(CompileError)
-  | Sequence([e, ...fs]) => KLKontList(compileKNodeToKNodeKontList(e), List.map(compileFreezer, fs))
-  | _ => raise(CompileError)
-  }
-and compileFreezer = (kn) : freezer => {
-  switch (kn) {
-  | Freezer(ops, args, hole) => {ops, args: List.map(compileKNodeToKNodeKontList, args), hole}
-  | _ => raise(CompileError)
-  }
-};
 
 let prettyList = (ss) => {
   let rec loop = (ss) =>
@@ -67,13 +50,16 @@ let insert = (x, xs, i) => {
   xs @ [x, ...ys]
 };
 
+
 let rec kNodeDebugPrint = (k) =>
   switch (k) {
   | Token(s) => "Token(" ++ s ++ ")"
   | Apply(ss, args) => "Apply(" ++ prettyList(List.map((s) => "\"" ++ s ++ "\"", ss)) ++ ", " ++ prettyList(List.map(kNodeDebugPrint, args)) ++ ")"
   | Freezer(ops, args, hole) => "Freezer(" ++ prettyList(ops) ++ ", " ++ prettyList(List.map(kNodeDebugPrint, args)) ++ ", " ++ string_of_int(hole) ++ ")"
-  | Sequence(l) => "Sequence(" ++ prettyList(List.map(kNodeDebugPrint, l)) ++ ")"
-  };
+  | Sequence(left, right) => "Sequence(" ++ kNodeDebugPrint(left) ++ ", " ++ kNodeDebugPrint(right) ++ ")"
+  | Map(l) => "Map(" ++ (List.map(debugEntry, l) |> prettyList) ++ ")"
+  }
+and debugEntry = ((k, v)) => kNodeDebugPrint(k) ++ "->" ++ kNodeDebugPrint(v);
 
 let rec knklDebugPrint = (k) =>
   switch (k) {
@@ -103,10 +89,34 @@ and prettyKontList = (kn, fs) =>
   | [f, ...fs] => prettyFreeze(f, prettyKontList(kn, fs))
   };
 
+/* compile KNode to KNodeKontList */
+exception CompileError(string);
+
+let rec compileKNodeToKNodeKontList = (kn : kNode) : kNodeKontList =>
+  switch (kn) {
+  | Token(s) => KLToken(s)
+  | Apply(ss, ks) => KLApply(ss, List.map(compileKNodeToKNodeKontList, ks))
+  | Sequence(Token(s), right) => KLKontList(KLToken(s), compileFreezerList(right))
+  | Sequence(Apply(ss, ks), right) => KLKontList(KLApply(ss, List.map(compileKNodeToKNodeKontList, ks)), compileFreezerList(right))
+  | _ => raise(CompileError("compileKNodeToKNodeKontList: " ++ kNodeDebugPrint(kn)))
+  }
+and compileFreezerList = (kn : kNode) : list(freezer) =>
+switch (kn) {
+| Freezer(ops, args, hole) => [{ops, args: List.map(compileKNodeToKNodeKontList, args), hole}]
+| Sequence(left, right) => compileFreezerList(left) @ compileFreezerList(right)
+| _ => raise(CompileError("compileFreezerList: " ++ kNodeDebugPrint(kn)))
+};
+
+/* JSON parsing */
+
 let cleanLabel = (s) => {
-  let suffix = "_LAMBDA";
-  if (Js.String.endsWith(suffix, s)) {
-    Js.String.substring(s, ~from=0, ~to_=(Js.String.length(s) - Js.String.length(suffix)))
+  /* TODO: reduce redundancy */
+  let suffix1 = "_LAMBDA";
+  let suffix2 = "_LAMBDA-SYNTAX";
+  if (Js.String.endsWith(suffix1, s)) {
+    Js.String.substring(s, ~from=0, ~to_=(Js.String.length(s) - Js.String.length(suffix1)))
+  } else if (Js.String.endsWith(suffix2, s)) {
+    Js.String.substring(s, ~from=0, ~to_=(Js.String.length(s) - Js.String.length(suffix2)))
   } else {
     s
   }
@@ -121,7 +131,17 @@ module Decode = {
   open Json.Decode;
 
   /* unneccesary function wrapping to skirt let rec limitations */
-  let rec kNode = (json) => {
+  let rec config = (json) => {
+    (field("label", string) |> andThen(
+      fun (s) =>
+        switch (s) {
+        | "<T>" => (json) => json |> field("args", list(kNode)) |> List.nth(_, 0) /* TODO: need to process ALL the args */
+        | _ => kNode
+        }
+    ))(json)
+    /* json |> field("args", list(kNode)) |> List.nth(_, 0) */
+  }
+  and kNode = (json) => {
     (field("node", string) |> andThen(
       fun (s) =>
         switch (s) {
@@ -138,8 +158,12 @@ module Decode = {
     (field("label", string) |> andThen(
       fun (s) =>
         switch (s) {
+        /* TODO: There is a problem here if a sequence node only contains a map. Then the first element of the map will get captured as the first element of the sequence.
+           Sequence is assuming it's getting an expression followed by an evaluation context. */
         | "#KSequence" => seq
-        | _ when Js.String.startsWith("#freezer", s) => freezer
+        | _ when Js.String.startsWith("#freezer", s) => freezer /* TODO: there seem to be some empty freezers in the JSON output. Why is that? */
+        | ".Map" => kEmptyMap
+        | "_Map_" => kMap
         | _ => apply
         }
     ))(json)
@@ -160,10 +184,26 @@ module Decode = {
     )
   }
   and seq = (json) => {
-    Sequence(json |> field("args", list(kNode)));
+    let (left, right) = json |> field("args", pair(kNode, kNode));
+    Sequence(left, right)
+  }
+  and kEmptyMap = (_) => {
+    Map([])
+  }
+  and kMap = (json) => {
+    Map(json |> field("args", list(mapKV)));
+  }
+  and mapKV = (json) => {
+    (field("label", string) |> andThen(
+      fun (s) =>
+        switch (s) {
+        | "_|->_" => field("args", pair(kNode, kNode))
+        | _ => raise(DecodeError("expected a key-value pair, but got: " ++ s))
+        }
+    ))(json)
   };
 
-  let kAst = (json) => json |> field("term", kNode);
+  let kAst = (json) => json |> field("term", config);
 };  
 
 let decode = (json) => json |> Json.parseOrRaise |> Decode.kAst;
@@ -206,10 +246,22 @@ type state = {currentConfig: option(ReasonReact.reactElement)};
 type action =
   | UpdateMachineState(configuration);
 
+/* Apply(["<k>"], [Sequence([
+  Apply(["", "<=", "", "LAMBDA-SYNTAX"], [Apply(["", "/", "", "LAMBDA-SYNTAX"], [Apply(["", "+", "", "LAMBDA-SYNTAX"], [Token(a), Apply(["", "*", "", "LAMBDA-SYNTAX"], [Token(b), Token(c)])]), Token(d)]), Token(a)]),
+  Apply(["", "Map", ""], [Apply(["", "|->", ""], [Token(b), Token(2)]), Apply(["", "|->", ""], [Token(c), Token(3)]), Apply(["", "|->", ""], [Token(a), Token(1)])]),
+  Apply(["", "Map", ""], [Apply(["", "|->", ""], [Token(b), Token(2)]), Apply(["", "|->", ""], [Token(a), Token(1)])]), Apply(["", "|->", ""], [Token(a), Token(1)]),
+  Apply([".Map"], [])])]) */
+
 /* TODO: error handling */
 let handleClick = (dispatch, _event) => {
-  let path = "http://localhost:8080/lets++-uberflat-log/";
+  /* let path = "http://localhost:8080/arithmetic-log/";
+  let log = "execute-423906835.log"; */
+  /* let path = "http://localhost:8080/lets++-log/";
+  let log = "execute-146023363.log"; */
+  let path = "http://localhost:8080/lets++-map-flattened-log/";
   let log = "execute-146023363.log";
+  /* let path = "http://localhost:8080/if-log/";
+  let log = "execute-1327674215.log"; */
   /* let callback = (json) => json |> Decode.kAst |> compileKNodeToKNodeKontList |> knklPretty; */
   /* let callback = (json) => json |> Decode.kAst |> kNodeDebugPrint |> React.string; */
   let callback = (json) => json |> Json.stringify |> React.string;
