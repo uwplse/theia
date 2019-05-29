@@ -62,8 +62,8 @@ module Decode = {
     (field("label", string) |> andThen(
       fun (s) =>
         switch (s) {
-        | "<T>" => (json) => json |> field("args", list(kNode)) |> List.nth(_, 0) /* TODO: need to process ALL the args */
-        | _ => kNode
+        | "<T>" => (json) => json |> field("args", list(kNode))
+        | _ => (json) => json |> kNode |> (x => [x])
         }
     ))(json)
     /* json |> field("args", list(kNode)) |> List.nth(_, 0) */
@@ -286,6 +286,8 @@ and prettyKont2List = (kn, fs) =>
   | [f, ...fs] => prettyFreeze(f, prettyKont2List(kn, fs))
   };
 
+let kn2PrettyList = (xs) => List.fold_left((s1, s2) => <> s1 <div> {kn2Pretty(s2)} </div> </>, <> </>, xs);
+
 let fetchLoggedStates = (file, callback) => {
   Js.Promise.(
     Fetch.fetch(file)
@@ -336,12 +338,12 @@ let handleClick = (dispatch, _event) => {
   /* let callback = (json) => json |> Decode.kAst |> compileKNodeToKNodeKontList |> knklDebugPrint |> React.string; */
   /* let callback = (json) => json |> Decode.kAst |> kNodeDebugPrint |> React.string; */
   /* let callback = (json) => json |> Decode.kAst |> kNodeToKNode2 |> kNode2DebugPrint |> React.string; */
-  let callback = (json) => json |> Decode.kAst |> kNodeToKNode2 |> kn2Pretty;
+  let callback = (json) => json |> Decode.kAst |> List.map(kNodeToKNode2) |> kn2PrettyList;
   /* let callback = (json) => json |> Json.stringify |> React.string; */
   let fetchedLogStateIDs = fetchLogStateIDs(path ++ log);
   Js.Promise.(fetchedLogStateIDs |> then_((fetched) => fetched |> List.fold_left(
     (p, file) => p |> then_((s1) => {
-      fetchLoggedStates(path ++ "null_blobs/" ++ file ++ ".json", callback) |> then_(s2 => resolve(<> s1 <div> s2 </div> </>))
+      fetchLoggedStates(path ++ "null_blobs/" ++ file ++ ".json", callback) |> then_(s2 => resolve(<> s1 <br /> <div> s2 </div> </>))
     }),
     resolve(<> </>),
     _)
