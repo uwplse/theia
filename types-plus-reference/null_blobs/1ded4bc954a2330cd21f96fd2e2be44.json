@@ -1,0 +1,9 @@
+<generatedTop>
+  <k>
+    R_?T -> lambda y . x + y ~> setTenv ( .Map )
+  </k>
+  <tenv>
+    x |-> R_?T
+  </tenv>
+</generatedTop>
+

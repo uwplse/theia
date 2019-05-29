@@ -1,0 +1,9 @@
+<generatedTop>
+  <k>
+    int -> int ~> #freezer_->__LAMBDA0_ ( int ) ~> setTenv ( .Map )
+  </k>
+  <tenv>
+    x |-> int
+  </tenv>
+</generatedTop>
+

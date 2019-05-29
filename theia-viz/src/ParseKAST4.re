@@ -74,7 +74,8 @@ module Decode = {
         switch (s) {
         | "KToken" => kToken
         | "KApply" => kApply
-        | _ => failwith("Unknown node type")
+        | "KVariable" => kVariable
+        | _ => failwith("Unknown node type: " ++ s)
         }
     ))(json)
   }
@@ -93,6 +94,10 @@ module Decode = {
         | _ => apply
         }
     ))(json)
+  }
+  and kVariable = (json) => {
+    /* TODO: this should be a new variant! */
+    Token(json |> field("name", string))
   }
   and apply = (json) => {
     Apply(
@@ -313,17 +318,23 @@ let fetchLogStateIDs = (file) => {
   );
 };
 
-type configuration = {k: ReasonReact.reactElement};
+type configuration = {k: list(ReasonReact.reactElement)};
 
-type state = {currentConfig: option(ReasonReact.reactElement)};
+type state = {trace: option(list(ReasonReact.reactElement)), currentConfig: int};
 
 type action =
-  | UpdateMachineState(configuration);
+  | UpdateMachineState(configuration)
+  | StepBack
+  | StepForward;
 
 /* TODO: error handling */
-let handleClick = (dispatch, _event) => {
-  let path = "http://localhost:8080/lets++-simple-uberflat-log/";
-  let log = "execute-434282768.log";
+let handleClick = (~path, ~log, dispatch, _event) => {
+  /* let path = "http://localhost:8080/lets++-simple-uberflat-log/";
+  let log = "execute-434282768.log"; */
+  /* let path = "http://localhost:8080/lets++-factorial-letrec/"
+  let log = "execute-332225037.log"; */
+  /* let path = "http://localhost:8080/lets++-callcc-env1/"
+  let log = "execute-1800280225.log"; */
   /* let path = "http://localhost:8080/lets++-simple-log/";
   let log = "execute-1212779923.log"; */
   /* let path = "http://localhost:8080/arithmetic-log/";
@@ -343,9 +354,9 @@ let handleClick = (dispatch, _event) => {
   let fetchedLogStateIDs = fetchLogStateIDs(path ++ log);
   Js.Promise.(fetchedLogStateIDs |> then_((fetched) => fetched |> List.fold_left(
     (p, file) => p |> then_((s1) => {
-      fetchLoggedStates(path ++ "null_blobs/" ++ file ++ ".json", callback) |> then_(s2 => resolve(<> s1 <br /> <div> s2 </div> </>))
+      fetchLoggedStates(path ++ "null_blobs/" ++ file ++ ".json", callback) |> then_(s2 => resolve(s1 @ [s2]))
     }),
-    resolve(<> </>),
+    resolve([]),
     _)
     |> then_((s) => {dispatch(UpdateMachineState({k: s})); resolve()})))
     |> ignore;
@@ -353,19 +364,52 @@ let handleClick = (dispatch, _event) => {
 
 [@react.component]
 let make = () => {
-  let (state, dispatch) = React.useReducer((_state, action) =>
+  let (state, dispatch) = React.useReducer((state, action) =>
   switch (action) {
-  | UpdateMachineState(s) => {currentConfig: Some(s.k)}
-  }, {currentConfig: None});
+  | UpdateMachineState(s) => {trace: Some(s.k), currentConfig: 0}
+  | StepBack => {...state, currentConfig: max(0, state.currentConfig - 1)}
+  | StepForward => {...state, currentConfig: min(state.currentConfig + 1, List.length(Belt_Option.getExn(state.trace)) - 1)}
+  }, {trace: None, currentConfig: 0});
 
   <div>
-    <button onClick={handleClick(dispatch)}>
-      {ReasonReact.string("foo bar")}
+    <button onClick={_ => dispatch(StepBack)}>
+      {React.string("<-")}
     </button>
+    <button onClick={_ => dispatch(StepForward)}>
+      {React.string("->")}
+    </button>
+    <button onClick={handleClick(~path="http://localhost:8080/lets++-callcc-env1/",
+                                 ~log="execute-1800280225.log",
+                                 dispatch)}>
+      {React.string("callcc")}
+    </button>
+    <button onClick={handleClick(~path="http://localhost:8080/lets++-factorial-letrec/",
+                                 ~log="execute-332225037.log",
+                                 dispatch)}>
+      {React.string("factorial letrec")}
+    </button>
+    /* this one doesn't work b/c it doesn't clean the data correctly. need to be smarter about data cleaning. */
+    /* some use LAMBDA suffixes and some use LAMBDA-SYNTAX. need to know which one to use */
+    /* <button onClick={handleClick(~path="http://localhost:8080/types-plus-log/",
+                                 ~log="execute-172182753.log",
+                                 dispatch)}>
+      {React.string("types plus")}
+    </button> */
     {
-      switch (state.currentConfig) {
+      let renderConfig = (my_option) =>
+        switch (my_option) {
+        | None => <> </>
+        | Some(v) => v
+        };
+
+      switch (state.trace) {
       | None => <> {React.string("No state!")} </>
-      | Some(s) => s
+      | Some(s) =>
+        <div>
+          /* {s->Belt.List.get(state.currentConfig - 1)->renderConfig} */
+          {s->Belt.List.get(state.currentConfig)->renderConfig}
+          /* {s->Belt.List.get(state.currentConfig + 1)->renderConfig} */
+        </div>
       }
     }
   </div>;

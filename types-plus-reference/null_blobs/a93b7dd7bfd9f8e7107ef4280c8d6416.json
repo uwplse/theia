@@ -1,0 +1,9 @@
+<generatedTop>
+  <k>
+    int -> ( int -> int ) ~> setTenv ( .Map )
+  </k>
+  <tenv>
+    x |-> int
+  </tenv>
+</generatedTop>
+

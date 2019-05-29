@@ -1,0 +1,9 @@
+<generatedTop>
+  <k>
+    lambda x . lambda y . x + y
+  </k>
+  <tenv>
+    .Map
+  </tenv>
+</generatedTop>
+
