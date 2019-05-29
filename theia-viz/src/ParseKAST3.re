@@ -9,6 +9,7 @@ type kNodeKontList =
   | KLToken(string)
   | KLApply(list(string), list(kNodeKontList))
   | KLKontList(kNodeKontList, list(freezer))
+  | KLMap(list((kNodeKontList, kNodeKontList)))
 and freezer = {ops: list(string), args: list(kNodeKontList), hole: int}
 
 let prettyList = (ss) => {
@@ -66,8 +67,10 @@ let rec knklDebugPrint = (k) =>
   | KLToken(s) => "KLToken(" ++ s ++ ")"
   | KLApply(ss, args) => "KLApply(" ++ prettyList(List.map((s) => "\"" ++ s ++ "\"", ss)) ++ ", " ++ prettyList(List.map(knklDebugPrint, args)) ++ ")"
   | KLKontList(kn, fs) => "KLKontList(\n  " ++ knklDebugPrint(kn) ++ ",\n  " ++ prettyList(List.map(freezerDebugPrint, fs)) ++ ")"
+  | KLMap(l) => "KLMap(" ++ (List.map(debugEntry, l) |> prettyList) ++ ")"
   }
 and freezerDebugPrint = ({ops, args, hole}) => "freezer(" ++ prettyList(ops) ++ ", " ++ prettyList(List.map(knklDebugPrint, args)) ++ ", " ++ string_of_int(hole) ++ ")"
+and debugEntry = ((k, v)) => knklDebugPrint(k) ++ "->" ++ knklDebugPrint(v);
 
 let render_open_brack = <span style=(ReactDOMRe.Style.make(~color="Crimson", ()))> {ReasonReact.string("[")} </span>;
 let render_close_brack = <span style=(ReactDOMRe.Style.make(~color="Crimson", ()))> {ReasonReact.string("]")} </span>;
@@ -77,6 +80,7 @@ let rec knklPretty = (k) =>
   | KLToken(s) => <> {React.string(s)} </>
   | KLApply(ops, args) => interleave(List.map(React.string, ops), List.map(knklPretty, args)) |> prettierList
   | KLKontList(kn, fs) => prettyKontList(kn, List.rev(fs))
+  | KLMap(l) => <> {React.string("TODO!!!")} </>
 }
 and prettyFreeze = (f, arg) => {
   let newArgs = insert(<> render_open_brack arg render_close_brack </>, List.map(knklPretty, f.args), f.hole);
@@ -98,6 +102,7 @@ let rec compileKNodeToKNodeKontList = (kn : kNode) : kNodeKontList =>
   | Apply(ss, ks) => KLApply(ss, List.map(compileKNodeToKNodeKontList, ks))
   | Sequence(Token(s), right) => KLKontList(KLToken(s), compileFreezerList(right))
   | Sequence(Apply(ss, ks), right) => KLKontList(KLApply(ss, List.map(compileKNodeToKNodeKontList, ks)), compileFreezerList(right))
+  | Map(l) => KLMap(List.map(((k, v)) => (compileKNodeToKNodeKontList(k), compileKNodeToKNodeKontList(v)), l))
   | _ => raise(CompileError("compileKNodeToKNodeKontList: " ++ kNodeDebugPrint(kn)))
   }
 and compileFreezerList = (kn : kNode) : list(freezer) =>
@@ -254,15 +259,18 @@ type action =
 
 /* TODO: error handling */
 let handleClick = (dispatch, _event) => {
+  let path = "http://localhost:8080/lets++-simple-log/";
+  let log = "execute-1212779923.log";
   /* let path = "http://localhost:8080/arithmetic-log/";
   let log = "execute-423906835.log"; */
   /* let path = "http://localhost:8080/lets++-log/";
   let log = "execute-146023363.log"; */
-  let path = "http://localhost:8080/lets++-map-flattened-log/";
-  let log = "execute-146023363.log";
+  /* let path = "http://localhost:8080/lets++-map-flattened-log/";
+  let log = "execute-146023363.log"; */
   /* let path = "http://localhost:8080/if-log/";
   let log = "execute-1327674215.log"; */
   /* let callback = (json) => json |> Decode.kAst |> compileKNodeToKNodeKontList |> knklPretty; */
+  /* let callback = (json) => json |> Decode.kAst |> compileKNodeToKNodeKontList |> knklDebugPrint |> React.string; */
   /* let callback = (json) => json |> Decode.kAst |> kNodeDebugPrint |> React.string; */
   let callback = (json) => json |> Json.stringify |> React.string;
   let fetchedLogStateIDs = fetchLogStateIDs(path ++ log);

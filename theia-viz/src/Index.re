@@ -4,3 +4,4 @@ ReactDOMRe.renderToElementWithId(<Component2 greeting="Hello!" />, "index2"); */
 
 ReactDOMRe.renderToElementWithId(<ParseKAST2 />, "index1");
 ReactDOMRe.renderToElementWithId(<ParseKAST3 />, "index2");
+ReactDOMRe.renderToElementWithId(<ParseKAST4 />, "index3");

@@ -1,0 +1,12 @@
+<T>
+  <k>
+    closure ( .Map , a , ( lambda b . ( a + b ) ) 2 ) ~> #freezer___LAMBDA-SYNTAX1_ ( 1 )
+  </k>
+  <env>
+    .Map
+  </env>
+  <store>
+    .Map
+  </store>
+</T>
+

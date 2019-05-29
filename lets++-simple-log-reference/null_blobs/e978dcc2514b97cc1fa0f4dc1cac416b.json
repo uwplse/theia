@@ -1,0 +1,12 @@
+<T>
+  <k>
+    ( lambda b . ( a + b ) ) 2 ~> .Map
+  </k>
+  <env>
+    a |-> 1
+  </env>
+  <store>
+    1 |-> 1
+  </store>
+</T>
+

@@ -1,0 +1,14 @@
+<T>
+  <k>
+    a ~> #freezer_+__LAMBDA-SYNTAX1_ ( 2 ) ~> a |-> 1 ~> .Map
+  </k>
+  <env>
+    a |-> 1
+    b |-> 2
+  </env>
+  <store>
+    1 |-> 1
+    2 |-> 2
+  </store>
+</T>
+
