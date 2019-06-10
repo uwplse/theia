@@ -1,4 +1,26 @@
-/* uses flattened sequences and maps */
+/* Like V4, but doesn't flatten sequences anymore since they don't flatten as far as I thought */
+
+/* 
+
+  Need to remove flattening of KSequence nodes, it doesn’t flatten nested sequences, which poses a problem for my assumptions.
+
+  Instead I need to visualize recursively. Not entirely sure how it works.
+
+  Sequence is
+  (n, n) => ~>
+  (f, f) => more freezers?
+  (n, f) =>  beginning of continuation
+  (f, n) => shouldn’t happen?
+
+  Copy from version 2, which is able to parse some things correctly, though it doesn’t handle the (n, n) case correctly. It wasn’t recursive enough iirc
+
+  TODO:
+    - rerun examples without sequences flattened
+    - restore v2-style parsing of sequences and data representation
+    - fix printing for arithmetic
+    - fix printing for more complex examples
+*/
+
 /* https://stackoverflow.com/a/244104 */
 let (--) = (i, j) => {
   let rec aux = (n, acc) => if (n < i) { acc } else { aux(n - 1, [n, ...acc]) };
