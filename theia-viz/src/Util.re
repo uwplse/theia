@@ -29,3 +29,15 @@ let prettierList = (ss) => {
 
 /* https://github.com/glennsl/vrroom */
 let nbsp = [%raw {|'\u00a0'|}];
+
+/* https://dev.to/margaretkrutikova/reasonreact-use-dom-api-and-hooks-to-detect-click-outside-4f74 */
+let useKeyPressed = (onKeyPressed: Dom.keyboardEvent => unit) => {
+  open Webapi.Dom;
+  React.useEffect0(() => {
+    Document.addKeyDownEventListener(onKeyPressed, document);
+    /* cleanup - unsubscribe on unmount. */
+    Some(
+      () => Document.removeKeyDownEventListener(onKeyPressed, document),
+    );
+  });
+};

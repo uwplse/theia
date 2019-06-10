@@ -251,6 +251,9 @@ let rec kn2Pretty = (k) =>
   | Apply2(ops, args) => Util.interleave(List.map(React.string, ops), List.map(kn2Pretty, args)) |> Util.prettierList
   | Freezer2(_) => raise(CompileError("There shouldn't be a Freezer2 outside a Kont2 node!"))
   | Sequence2(l) => <> {Util.interleave(List.map(kn2Pretty, l), (1--(List.length(l) - 1)) |> List.map(_ => React.string(" ~> "))) |> Util.prettierList} </>
+  /* | Sequence2(l) => <> {kn2PrettyList(l)} </> */ /* TODO: almost right except for subexpressions that contain sequences like in callcc.
+    I think it's better to just have a list of environments than a store them in the k node. This is a semantics problem.
+    There are two ways to affect the visualization: change how individual elements are rendered or change the semantics. */
   | Map2([]) => 
       <table style=(ReactDOMRe.Style.make(~borderCollapse="collapse", ~display="inline-table", ()))>
         <tbody>  
@@ -289,9 +292,8 @@ and prettyKont2List = (kn, fs) =>
   switch (fs) {
   | [] => kn2Pretty(kn)
   | [f, ...fs] => prettyFreeze(f, prettyKont2List(kn, fs))
-  };
-
-let kn2PrettyList = (xs) => List.fold_left((s1, s2) => <> s1 <div> {kn2Pretty(s2)} </div> </>, <> </>, xs);
+  }
+and kn2PrettyList = (xs) => List.fold_left((s1, s2) => <> s1 <div> {kn2Pretty(s2)} </div> </>, <> </>, xs);
 
 let fetchLoggedStates = (file, callback) => {
   Js.Promise.(
@@ -370,6 +372,16 @@ let make = () => {
   | StepBack => {...state, currentConfig: max(0, state.currentConfig - 1)}
   | StepForward => {...state, currentConfig: min(state.currentConfig + 1, List.length(Belt_Option.getExn(state.trace)) - 1)}
   }, {trace: None, currentConfig: 0});
+
+  /* register keyboard events */
+  let handleKeyPressed = (e) => {
+    switch (Webapi.Dom.KeyboardEvent.key(e)) {
+    | "ArrowLeft" => dispatch(StepBack)
+    | "ArrowRight" => dispatch(StepForward)
+    | _ => ()
+    }
+  };
+  Util.useKeyPressed(handleKeyPressed);
 
   <div>
     <button onClick={_ => dispatch(StepBack)}>
