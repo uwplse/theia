@@ -17,14 +17,18 @@ let insert = (x, xs, i) => {
   xs @ [x, ...ys]
 };
 
-let prettierList = (ss) => {
+let prettierList = (~parens=true, ss) => {
   let rec loop = (ss) =>
     switch (ss) {
     | [] => <> </>
     | [s] => <> s </>
     | [s, ...ss] => <> s {React.string(" ")} {loop(ss)} </>
     };
-  <> {React.string("(")} {loop(ss)} {React.string(")")} </>
+  if (parens) {
+    <> {React.string("(")} {loop(ss)} {React.string(")")} </>
+  } else {
+    <> {loop(ss)} </>
+  }
 };
 
 /* https://github.com/glennsl/vrroom */

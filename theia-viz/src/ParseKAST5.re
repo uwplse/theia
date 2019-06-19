@@ -26,6 +26,24 @@ let (--) = (i, j) => {
   aux(j, [])
 };
 
+let values = [["closure"], ["muclosure"]];
+
+let rec appNodesEq = (v1, v2) => {
+  switch (v1, v2) {
+  | ([], []) => true
+  | ([], [_, ..._]) => false
+  | ([_, ..._], []) => false
+  | ([s1, ...v1], [s2, ...v2]) => (s1 == s2) && appNodesEq(v1, v2)
+  }
+};
+
+let rec appNodeIn = (s, vs) => {
+  switch (vs) {
+  | [] => false
+  | [v, ...vs] => appNodesEq(s, v) || appNodeIn(s, vs)
+  }
+};
+
 type kNode =
   | Token(string)
   | Apply(list(string), list(kNode))
@@ -207,12 +225,14 @@ type kNode2 =
   | Map2(list(kNode2))
   | Kont2(kNode2, list(freezer))
   | KV2((kNode2, kNode2))
+  | Value2(list(string), list(kNode2))
 and freezer = {ops: list(string), args: list(kNode2), holePos: int};
 
 let rec kNode2DebugPrint = (k) =>
   switch (k) {
   | Token2(s) => "Token2(" ++ s ++ ")"
   | Apply2(ss, args) => "Apply2(" ++ prettyList(List.map((s) => "\"" ++ s ++ "\"", ss)) ++ ", " ++ prettyList(List.map(kNode2DebugPrint, args)) ++ ")"
+  | Value2(ss, args) => "Value2(" ++ prettyList(List.map((s) => "\"" ++ s ++ "\"", ss)) ++ ", " ++ prettyList(List.map(kNode2DebugPrint, args)) ++ ")"
   | Freezer2(f) => "Freezer2(" ++ debugFreezer(f) ++ ")"
   | Sequence2(l) => "Sequence2(" ++ (List.map(kNode2DebugPrint, l) |> prettyList) ++ ")"
   | Map2(l) => "Map2(" ++ (List.map(kNode2DebugPrint, l) |> prettyList) ++ ")"
@@ -233,6 +253,7 @@ let rec kNode2DebugPrintShort = (k) =>
   | Map2(_) => "Map"
   | Kont2(_) => "Kont"
   | KV2(_) => "KV"
+  | Value2(_, args) => "Val(" ++ prettyList(List.map(kNode2DebugPrintShort, args)) ++ ")"
   };
 
 type seqDebug =
@@ -363,7 +384,12 @@ Sequence([
 let rec kNodeToKNode2 = (kn) =>
   switch (kn) {
   | Token(s) => Token2(s)
-  | Apply(ss, kns) => Apply2(ss, List.map(kNodeToKNode2, kns))
+  | Apply(ss, kns) =>
+    if (appNodeIn(ss, values)) {
+      Value2(ss, List.map(kNodeToKNode2, kns))
+    } else {
+      Apply2(ss, List.map(kNodeToKNode2, kns))
+    }
   | Freezer(ss, kns, i) => Freezer2({ops: ss, args: List.map(kNodeToKNode2, kns), holePos: i})
   /* when we hit a sequence node, switch to aux */
   | Sequence(_) => convertSequence(flattenSequence(kn, []))
@@ -470,6 +496,11 @@ let rec kn2Pretty = (k) =>
         <td style=(ReactDOMRe.Style.make(~border="1px solid black", ()))> {kn2Pretty(k)} </td>
         <td style=(ReactDOMRe.Style.make(~border="1px solid black", ()))> {kn2Pretty(v)} </td>
       </>
+  | Value2(ops, args) =>
+    <fieldset style=(ReactDOMRe.Style.make(~display="inline", ()))>
+      <legend> {Util.interleave(ops, (1--(List.length(ops) - 1)) |> List.map(_ => "•")) |> List.fold_left((++), "") |> React.string} </legend>
+      {Util.interleave(List.map(kn2Pretty, args), (1--(List.length(args) - 1)) |> List.map(_ => React.string("|"))) |> Util.prettierList(~parens=false)}
+    </fieldset>
 }
 and prettyFreeze = ({ops, args, holePos}, arg) => {
   let newArgs = Util.insert(<> render_open_brack arg render_close_brack </>, List.map(kn2Pretty, args), holePos);
@@ -601,8 +632,10 @@ let make = () => {
                                  dispatch)}>
       {React.string("callcc")}
     </button>
-    <button onClick={handleClick(~path="http://localhost:8080/lets++-factorial-letrec-short/",
-                                 ~log="execute-1327604975.log",
+    <button onClick={handleClick(~path="http://localhost:8080/lets++-factorial-letrec-5/",
+                                 ~log="execute-332225037.log",
+                                 /* ~path="http://localhost:8080/lets++-factorial-letrec-short/",
+                                 ~log="execute-1327604975.log", */
                                  ~print=Theia,
                                  dispatch)}>
       {React.string("factorial letrec")}
