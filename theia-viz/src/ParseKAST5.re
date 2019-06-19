@@ -15,11 +15,10 @@
   Copy from version 2, which is able to parse some things correctly, though it doesn’t handle the (n, n) case correctly. It wasn’t recursive enough iirc
 
   TODO:
-    - rerun examples without sequences flattened
-    - restore v2-style parsing of sequences and data representation
-    - fix printing for arithmetic
-    - fix printing for more complex examples
+    - fix printing for more complex examples. this will take some work b/c callcc breaks some of my assumptions for where sequence nodes can arise maybe
 */
+
+let rlist = (l) => l |> Array.of_list |> React.array;
 
 /* https://stackoverflow.com/a/244104 */
 let (--) = (i, j) => {
@@ -34,6 +33,8 @@ type kNode =
   | Sequence((kNode, kNode))
   | Map(list(kNode))
   | KV((kNode, kNode));
+
+type cell('a) = {label: string, body: list('a)};
 
 let prettyList = (ss) => {
   let rec loop = (ss) =>
@@ -79,11 +80,18 @@ module Decode = {
     (field("label", string) |> andThen(
       fun (s) =>
         switch (s) {
-        | "<T>" => (json) => json |> field("args", list(kNode))
-        | _ => (json) => json |> kNode |> (x => [x])
+        | "<T>" => (json) => json |> field("args", list(cell))
+        | _ => (json) => json |> cell |> (x => [x])
         }
     ))(json)
     /* json |> field("args", list(kNode)) |> List.nth(_, 0) */
+  }
+  and cell = (json) => {
+    let s = json |> field("label", string);
+    {
+      label: s |> Js.String.substring(~from=1, ~to_=(Js.String.length(s) - 1)),
+      body: json |> field("args", list(kNode)),
+    }
   }
   and kNode = (json) => {
     (field("node", string) |> andThen(
@@ -499,6 +507,15 @@ let fetchLogStateIDs = (file) => {
   );
 };
 
+let cellPrint = ({label, body}, printer, i) => {
+  <fieldset key={string_of_int(i)}>
+    <legend> {React.string(label)} </legend>
+    {printer(body)}
+  </fieldset>
+};
+
+let cellsPrint = (printer, cs) => cs |> List.mapi((i, c) => cellPrint(c, printer, i));
+
 type configuration = {k: list(ReasonReact.reactElement)};
 
 type state = {trace: option(list(ReasonReact.reactElement)), currentConfig: int};
@@ -513,19 +530,18 @@ type print =
   | KNode2
   | KNode2Short
   | Json
-  | Theia
-  | SeqDebug;
+  | Theia;
 
 /* TODO: error handling */
 let handleClick = (~path, ~log, ~print, dispatch, _event) => {
   let callback = (json) =>
     switch (print) {
-    | KNode => json |> Decode.kAst |> List.map(ast => ast |> kNodeDebugPrint |> React.string) |> Array.of_list |> React.array
-    | KNode2 => json |> Decode.kAst |> List.map(ast => ast |> kNodeToKNode2 |> kNode2DebugPrint |> React.string) |> Array.of_list |> React.array
-    | KNode2Short => json |> Decode.kAst |> List.map(ast => ast |> kNodeToKNode2 |> kNode2DebugPrintShort |> React.string) |> Array.of_list |> React.array
+    | KNode => json |> Decode.kAst |> cellsPrint(kns => kns |> List.map(ast => ast |> kNodeDebugPrint |> React.string) |> rlist) |> rlist
+    | KNode2 => json |> Decode.kAst |> cellsPrint(kns => kns |> List.map(ast => ast |> kNodeToKNode2 |> kNode2DebugPrint |> React.string) |> rlist) |> rlist
+    | KNode2Short => json |> Decode.kAst |> cellsPrint(kns => kns |> List.map(ast => ast |> kNodeToKNode2 |> kNode2DebugPrintShort |> React.string) |> rlist) |> rlist
     | Json => json |> Json.stringify |> React.string
-    | Theia => json |> Decode.kAst |> List.map(kNodeToKNode2) |> kn2PrettyList
-    | SeqDebug =>
+    | Theia => json |> Decode.kAst |> cellsPrint(kns => kns |> List.map(kNodeToKNode2) |> kn2PrettyList) |> rlist
+    /* | SeqDebug =>
         <>
         <div>
           (json |> Decode.kAst |> List.map(ast => ast |> kNodeDebugPrint |> React.string) |> Array.of_list |> React.array)
@@ -533,7 +549,7 @@ let handleClick = (~path, ~log, ~print, dispatch, _event) => {
         <div>
           (json |> Decode.kAst |> List.map(ast => ast |> kNodeToSeqDebug |> seqDebugPrint |> React.string) |> Array.of_list |> React.array)
         </div>
-        </>
+        </> */
     };
 
   let fetchedLogStateIDs = fetchLogStateIDs(path ++ log);
