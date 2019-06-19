@@ -1,0 +1,23 @@
+<T>
+  <k>
+    closure ( f |-> 1 , x , if x <= 1 then 1 else ( x * ( f ( x + -1 ) ) ) ) ( x + -1 ) ~> #freezer_*__LAMBDA-SYNTAX0_ ( 6 ) ~> x |-> 6
+    f |-> 1 ~> #freezer_*__LAMBDA-SYNTAX0_ ( 7 ) ~> x |-> 5
+    f |-> 1 ~> #freezer_*__LAMBDA-SYNTAX0_ ( 8 ) ~> x |-> 4
+    f |-> 1 ~> #freezer_*__LAMBDA-SYNTAX0_ ( 9 ) ~> x |-> 3
+    f |-> 1 ~> #freezer_*__LAMBDA-SYNTAX0_ ( 10 ) ~> f |-> 2 ~> .Map
+  </k>
+  <env>
+    x |-> 7
+    f |-> 1
+  </env>
+  <store>
+    1 |-> muclosure ( f |-> 1 , lambda x . if x <= 1 then 1 else ( x * ( f ( x + -1 ) ) ) )
+    2 |-> closure ( f |-> 1 , x , if x <= 1 then 1 else ( x * ( f ( x + -1 ) ) ) )
+    3 |-> 10
+    4 |-> 9
+    5 |-> 8
+    6 |-> 7
+    7 |-> 6
+  </store>
+</T>
+

@@ -31,7 +31,7 @@ type kNode =
   | Token(string)
   | Apply(list(string), list(kNode))
   | Freezer(list(string), list(kNode), int)
-  | Sequence(list(kNode))
+  | Sequence((kNode, kNode))
   | Map(list(kNode))
   | KV((kNode, kNode));
 
@@ -50,7 +50,7 @@ let rec kNodeDebugPrint = (k) =>
   | Token(s) => "Token(" ++ s ++ ")"
   | Apply(ss, args) => "Apply(" ++ prettyList(List.map((s) => "\"" ++ s ++ "\"", ss)) ++ ", " ++ prettyList(List.map(kNodeDebugPrint, args)) ++ ")"
   | Freezer(ops, args, hole) => "Freezer(" ++ prettyList(ops) ++ ", " ++ prettyList(List.map(kNodeDebugPrint, args)) ++ ", " ++ string_of_int(hole) ++ ")"
-  | Sequence(l) => "Sequence(" ++ (List.map(kNodeDebugPrint, l) |> prettyList) ++ ")"
+  | Sequence((l, r)) => "Sequence(" ++ kNodeDebugPrint(l) ++ ", " ++ kNodeDebugPrint(r) ++ ")"
   | Map(l) => "Map(" ++ (List.map(kNodeDebugPrint, l) |> prettyList) ++ ")"
   | KV((k, v)) => "KV(" ++ kNodeDebugPrint(k) ++ ", " ++ kNodeDebugPrint(v) ++ ")"
   }
@@ -132,7 +132,7 @@ module Decode = {
     )
   }
   and seq = (json) => {
-    Sequence(json |> field("args", list(kNode)))
+    Sequence(json |> field("args", pair(kNode, kNode)))
   }
   and kEmptyMap = (_) => {
     Map([])
@@ -194,23 +194,104 @@ let split = (l, x) =>
 type kNode2 =
   | Token2(string)
   | Apply2(list(string), list(kNode2))
-  | Freezer2(list(string), list(kNode2), int)
+  | Freezer2(freezer)
   | Sequence2(list(kNode2))
   | Map2(list(kNode2))
-  | Kont2(kNode2, list(kNode2))
-  | KV2((kNode2, kNode2));
+  | Kont2(kNode2, list(freezer))
+  | KV2((kNode2, kNode2))
+and freezer = {ops: list(string), args: list(kNode2), holePos: int};
 
 let rec kNode2DebugPrint = (k) =>
   switch (k) {
   | Token2(s) => "Token2(" ++ s ++ ")"
   | Apply2(ss, args) => "Apply2(" ++ prettyList(List.map((s) => "\"" ++ s ++ "\"", ss)) ++ ", " ++ prettyList(List.map(kNode2DebugPrint, args)) ++ ")"
-  | Freezer2(ops, args, hole) => "Freezer2(" ++ prettyList(ops) ++ ", " ++ prettyList(List.map(kNode2DebugPrint, args)) ++ ", " ++ string_of_int(hole) ++ ")"
+  | Freezer2(f) => "Freezer2(" ++ debugFreezer(f) ++ ")"
   | Sequence2(l) => "Sequence2(" ++ (List.map(kNode2DebugPrint, l) |> prettyList) ++ ")"
   | Map2(l) => "Map2(" ++ (List.map(kNode2DebugPrint, l) |> prettyList) ++ ")"
-  | Kont2(e, fs) => "Kont2(" ++ kNode2DebugPrint(e) ++ ", " ++ (List.map(kNode2DebugPrint, fs) |> prettyList) ++ ")"
+  | Kont2(e, fs) => "Kont2(" ++ kNode2DebugPrint(e) ++ ", " ++ (List.map(debugFreezer, fs) |> prettyList) ++ ")"
   | KV2((k, v)) => "KV2(" ++ kNode2DebugPrint(k) ++ ", " ++ kNode2DebugPrint(v) ++ ")"
   }
-and debugEntry2 = ((k, v)) => kNode2DebugPrint(k) ++ "->" ++ kNode2DebugPrint(v);
+and debugEntry2 = ((k, v)) => kNode2DebugPrint(k) ++ "->" ++ kNode2DebugPrint(v)
+and debugFreezer = ({ops, args, holePos}) => {
+  "freezer2(" ++ prettyList(List.map((s) => "\"" ++ s ++ "\"", ops)) ++ ", " ++ prettyList(List.map(kNode2DebugPrint, args)) ++ ", " ++ string_of_int(holePos) ++ ")"
+};
+
+let rec kNode2DebugPrintShort = (k) =>
+  switch (k) {
+  | Token2(_) => "Tk"
+  | Apply2(_, args) => "App(" ++ prettyList(List.map(kNode2DebugPrintShort, args)) ++ ")"
+  | Freezer2(_) => "Fz"
+  | Sequence2(l) => "Seq(" ++ prettyList(List.map(kNode2DebugPrintShort, l)) ++ ")"
+  | Map2(_) => "Map"
+  | Kont2(_) => "Kont"
+  | KV2(_) => "KV"
+  };
+
+type seqDebug =
+  | Seq(seqDebug, seqDebug)
+  | ApplyS(list(seqDebug))
+  | FreezerS(list(seqDebug))
+  | MapS(list(seqDebug))
+  | KVS(seqDebug, seqDebug)
+  | NoSeq;
+
+let rec seqDebugPrint = (s) =>
+  switch (s) {
+  | Seq(l, r) => "Seq(" ++ seqDebugPrint(l) ++ ", " ++ seqDebugPrint(r) ++ ")"
+  | NoSeq => "NS"
+  | ApplyS(ss) => "App(" ++ prettyList(List.map(seqDebugPrint, ss)) ++ ")"
+  | FreezerS(ss) => "F(" ++ prettyList(List.map(seqDebugPrint, ss)) ++ ")"
+  | MapS(ss) => "Map(" ++ prettyList(List.map(seqDebugPrint, ss)) ++ ")"
+  | KVS(l, r) => "KV(" ++ seqDebugPrint(l) ++ ", " ++ seqDebugPrint(r) ++ ")"
+  };
+
+let notIsSeq = (s) =>
+  switch (s) {
+  | Seq(_) => false
+  | _ => true
+  };
+
+let isNoSeq = (s) =>
+  switch (s) {
+  | NoSeq => true
+  | _ => false
+  }
+
+let noSeq = List.for_all(isNoSeq);
+
+let rec kNodeToSeqDebug = (kn) =>
+  switch (kn) {
+  | Sequence((l, r)) => Seq(kNodeToSeqDebug(l), kNodeToSeqDebug(r))
+  | Token(_) => NoSeq
+  | Apply(_, kns) => {
+    let convertedKNS = List.map(kNodeToSeqDebug, kns);
+    if (noSeq(convertedKNS)) {
+      NoSeq
+    } else {
+      ApplyS(convertedKNS)
+    }
+  }
+  | Freezer(_, kns, _) => {
+    let convertedKNS = List.map(kNodeToSeqDebug, kns);
+    FreezerS(convertedKNS)
+  } 
+  | Map(kns) => {
+    let convertedKNS = List.map(kNodeToSeqDebug, kns);
+      if (noSeq(convertedKNS)) {
+        NoSeq
+      } else {
+        MapS(convertedKNS)
+      }
+    }
+  | KV((l, r)) => {
+    let (cK, cV) = (kNodeToSeqDebug(l), kNodeToSeqDebug(r));
+      if (noSeq([cK, cV])) {
+        NoSeq
+      } else {
+        KVS(cK, cV)
+      }
+    }
+  };
 
 let rec splitSeqAux = (l) =>
   switch (l) {
@@ -232,15 +313,22 @@ let splitSeq = (l) =>
   | l  => List.tl(splitSeqAux(l))
   };
 
+let rec extractFreezers = (fs) =>
+  switch (fs) {
+  | [] => []
+  | [Freezer2(f), ...t] => [f, ...extractFreezers(t)]
+  | _ => raise(CompileError("expected a freezer"))
+  };
+
 /* [[n], [n, f, f], [n, f]] => [n, kont(n, [f, f]), kont(n, [f])] */
 let convertToKont = (l: list(kNode2)) : kNode2 =>
   switch (l) {
   | [] => raise(CompileError("Got an empty list in convertToKont."))
   | [n] => n
-  | [n, ...fs] => Kont2(n, fs)
+  | [n, ...fs] => Kont2(n, extractFreezers(fs))
   };
 
-let convertSequence = List.map(convertToKont);
+let convertSequence = (s) => Sequence2(s |> splitSeq |> List.map(convertToKont));
 
 /* TODO: for now, assuming that KV is a single-entry map */
 /* TODO: This is buggy!
@@ -263,20 +351,76 @@ Sequence([
     Freezer([, <=, ], [Token(1)], 0)])])])
 */
 
+/* top-level visiting */
 let rec kNodeToKNode2 = (kn) =>
   switch (kn) {
-    | Token(s) => Token2(s)
-    | Apply(ss, kns) => Apply2(ss, List.map(kNodeToKNode2, kns))
-    | Freezer(ss, kns, i) => Freezer2(ss, List.map(kNodeToKNode2, kns), i)
-    | Sequence(kns) => Sequence2(List.map(kNodeToKNode2, kns) |> splitSeq |> convertSequence)
-    | Map(kns) => Map2(List.map(compileKeys2, kns))
-    | KV(_) => Map2([compileKeys2(kn)]);
-    }
+  | Token(s) => Token2(s)
+  | Apply(ss, kns) => Apply2(ss, List.map(kNodeToKNode2, kns))
+  | Freezer(ss, kns, i) => Freezer2({ops: ss, args: List.map(kNodeToKNode2, kns), holePos: i})
+  /* when we hit a sequence node, switch to aux */
+  | Sequence(_) => convertSequence(flattenSequence(kn, []))
+  | Map(kns) => Map2(List.map(compileKeys2, kns))
+  | KV(_) => Map2([compileKeys2(kn)]);
+  }
+/* flatten sequence. we assume that the sequence is a spined tree that leans right */
+/* TODO: This flattening is correct, but I still need to combine the freezers into a list using the split code form earlier. i.e. need to make Kont nodes */
+and flattenSequence = (kn, seqList) => {
+  switch (kn) {
+  | Sequence((l, r)) => {
+    let visitedLeft = flattenSequence(l, []);
+    let visitedRight = flattenSequence(r, []);
+    seqList @ visitedLeft @ visitedRight
+  }
+  | _ => seqList @ [kNodeToKNode2(kn)]
+  }
+}
 and compileKeys2 = (kn) =>
   switch (kn) {
   | KV((k, v)) => KV2((kNodeToKNode2(k), kNodeToKNode2(v)))
   | _ => raise(CompileError("Expected key-value pair")) /* todo: add node to this error */
   };
+
+/* let rec kNodeToKNode2 = (kn) =>
+  switch (kn) {
+    | Token(s) => Token2(s)
+    | Apply(ss, kns) => Apply2(ss, List.map(kNodeToKNode2, kns))
+    | Freezer(ss, kns, i) => FreezerList2([{ops: ss, args: List.map(kNodeToKNode2, kns), holePos: i}])
+    | Sequence((l, r)) => compileSequence2(l, r)
+    | Map(kns) => Map2(List.map(compileKeys2, kns))
+    | KV(_) => Map2([compileKeys2(kn)]);
+    }
+and kNodeToKNode2Aux = (kn) =>
+switch (kn) {
+  | Token(s) => Token2(s)
+  | Apply(ss, kns) => Apply2(ss, List.map(kNodeToKNode2Aux, kns))
+  | Freezer(ss, kns, i) => FreezerList2([{ops: ss, args: List.map(kNodeToKNode2Aux, kns), holePos: i}])
+  | Sequence((l, r)) => compileSequence2Aux(kNodeToKNode2Aux(l), kNodeToKNode2Aux(r))
+  | Map(kns) => Map2(List.map(compileKeys2, kns))
+  | KV(_) => Map2([compileKeys2(kn)]);
+  }
+and compileSequence2Aux = (l, r) => {
+  switch (r) {
+  | Sequence
+  }
+  /* switch (l, r) {
+  | (FreezerList2(fs1), FreezerList2(fs2)) => FreezerList2(fs1 @ fs2)
+  | (_, FreezerList2(fs)) => Kont2(l, fs)
+  | (_, _) => Sequence2([l, r])
+  | _ => raise(CompileError("unknown case: \nl: " ++ kNode2DebugPrint(l) ++ "\nr: " ++ kNode2DebugPrint(r)))
+  } */
+}
+/* TODO: this shouldn't always return a continuation */
+and compileSequence2 = (l, r) => {
+  /* compileSequence2Aux(kNodeToKNode2(l), kNodeToKNode2(r)) */
+  let visitedLeft = kNodeToKNode2Aux(l);
+  let visitedRight = kNodeToKNode2Aux(r);
+  Sequence2(compileSequence2Aux(visitedLeft, visitedRight))
+}
+and compileKeys2 = (kn) =>
+  switch (kn) {
+  | KV((k, v)) => KV2((kNodeToKNode2(k), kNodeToKNode2(v)))
+  | _ => raise(CompileError("Expected key-value pair")) /* todo: add node to this error */
+  }; */
 
 /* and finally pretty printing! */
 let render_open_brack = <span style=(ReactDOMRe.Style.make(~color="Crimson", ()))> {ReasonReact.string("[")} </span>;
@@ -318,13 +462,10 @@ let rec kn2Pretty = (k) =>
         <td style=(ReactDOMRe.Style.make(~border="1px solid black", ()))> {kn2Pretty(v)} </td>
       </>
 }
-and prettyFreeze = (kn, arg) =>
-  switch (kn) {
-  | Freezer2(ops, args, hole) =>
-      let newArgs = Util.insert(<> render_open_brack arg render_close_brack </>, List.map(kn2Pretty, args), hole);
-      Util.interleave(List.map(React.string, ops), newArgs) |> Util.prettierList
-  | _ => raise(CompileError("Expected freezer in prettyFreeze"))
-  }
+and prettyFreeze = ({ops, args, holePos}, arg) => {
+  let newArgs = Util.insert(<> render_open_brack arg render_close_brack </>, List.map(kn2Pretty, args), holePos);
+  Util.interleave(List.map(React.string, ops), newArgs) |> Util.prettierList
+}
 and prettyKont2List = (kn, fs) =>
   switch (fs) {
   | [] => kn2Pretty(kn)
@@ -369,8 +510,10 @@ type action =
 type print =
   | KNode
   | KNode2
+  | KNode2Short
   | Json
-  | Theia;
+  | Theia
+  | SeqDebug;
 
 /* TODO: error handling */
 let handleClick = (~path, ~log, ~print, dispatch, _event) => {
@@ -378,8 +521,18 @@ let handleClick = (~path, ~log, ~print, dispatch, _event) => {
     switch (print) {
     | KNode => json |> Decode.kAst |> List.map(ast => ast |> kNodeDebugPrint |> React.string) |> Array.of_list |> React.array
     | KNode2 => json |> Decode.kAst |> List.map(ast => ast |> kNodeToKNode2 |> kNode2DebugPrint |> React.string) |> Array.of_list |> React.array
+    | KNode2Short => json |> Decode.kAst |> List.map(ast => ast |> kNodeToKNode2 |> kNode2DebugPrintShort |> React.string) |> Array.of_list |> React.array
     | Json => json |> Json.stringify |> React.string
     | Theia => json |> Decode.kAst |> List.map(kNodeToKNode2) |> kn2PrettyList
+    | SeqDebug =>
+        <>
+        <div>
+          (json |> Decode.kAst |> List.map(ast => ast |> kNodeDebugPrint |> React.string) |> Array.of_list |> React.array)
+        </div>
+        <div>
+          (json |> Decode.kAst |> List.map(ast => ast |> kNodeToSeqDebug |> seqDebugPrint |> React.string) |> Array.of_list |> React.array)
+        </div>
+        </>
     };
 
   let fetchedLogStateIDs = fetchLogStateIDs(path ++ log);
@@ -421,7 +574,7 @@ let make = () => {
     </button>
     <button onClick={handleClick(~path="http://localhost:8080/arithmetic-log/",
                                  ~log="execute-423906835.log",
-                                 ~print=KNode,
+                                 ~print=Theia,
                                  dispatch)}>
       {React.string("arith-rw")}
     </button>
@@ -431,8 +584,8 @@ let make = () => {
                                  dispatch)}>
       {React.string("callcc")}
     </button>
-    <button onClick={handleClick(~path="http://localhost:8080/lets++-factorial-letrec/",
-                                 ~log="execute-332225037.log",
+    <button onClick={handleClick(~path="http://localhost:8080/lets++-factorial-letrec-short/",
+                                 ~log="execute-1327604975.log",
                                  ~print=Theia,
                                  dispatch)}>
       {React.string("factorial letrec")}

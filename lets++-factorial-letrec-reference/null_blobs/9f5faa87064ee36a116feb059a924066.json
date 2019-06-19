@@ -1,0 +1,12 @@
+<T>
+  <k>
+    closure ( f |-> 1 , x , if x <= 1 then 1 else ( x * ( f ( x + -1 ) ) ) ) ~> .Map ~> #freezer___LAMBDA-SYNTAX0_ ( closure ( .Map , f , f 10 ) )
+  </k>
+  <env>
+    f |-> 1
+  </env>
+  <store>
+    1 |-> muclosure ( f |-> 1 , lambda x . if x <= 1 then 1 else ( x * ( f ( x + -1 ) ) ) )
+  </store>
+</T>
+

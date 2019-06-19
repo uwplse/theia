@@ -223,7 +223,8 @@ type action =
 let handleClick = (dispatch, _event) => {
   let path = "http://localhost:8080/arithmetic-log/";
   let log = "execute-423906835.log";
-  let callback = (json) => json |> Decode.kAst |> compileKNodeToKNodeKontList |> knklPretty;
+  /* let callback = (json) => json |> Decode.kAst |> compileKNodeToKNodeKontList |> knklPretty; */
+  let callback = (json) => json |> Decode.kAst |> kNodeDebugPrint |> React.string;
   let fetchedLogStateIDs = fetchLogStateIDs(path ++ log);
   Js.Promise.(fetchedLogStateIDs |> then_((fetched) => fetched |> List.fold_left(
     (p, file) => p |> then_((s1) => {

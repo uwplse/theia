@@ -1,0 +1,12 @@
+<T>
+  <k>
+    lambda f . ( f 2 ) ~> #freezer___LAMBDA-SYNTAX1_ ( mu f . lambda x . if x <= 1 then 1 else ( x * ( f ( x + -1 ) ) ) )
+  </k>
+  <env>
+    .Map
+  </env>
+  <store>
+    .Map
+  </store>
+</T>
+
