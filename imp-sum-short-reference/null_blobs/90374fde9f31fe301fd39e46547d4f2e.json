@@ -1,0 +1,19 @@
+<T>
+  <k>
+    if (true) {
+      {
+        sum = sum + n;
+        n = n + -1;
+      }
+      while (! n <= 0) {
+        sum = sum + n;
+        n = n + -1;
+      }
+    } else { }
+  </k>
+  <state>
+    sum |-> 9
+    n |-> 3
+  </state>
+</T>
+

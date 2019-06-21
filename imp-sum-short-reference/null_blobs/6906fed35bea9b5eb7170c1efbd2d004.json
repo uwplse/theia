@@ -1,0 +1,19 @@
+<T>
+  <k>
+    ! true ~> #freezerif(_)_else__IMP-SYNTAX1_ ( {
+      {
+        sum = sum + n;
+        n = n + -1;
+      }
+      while (! n <= 0) {
+        sum = sum + n;
+        n = n + -1;
+      }
+    } , { } )
+  </k>
+  <state>
+    sum |-> 15
+    n |-> 0
+  </state>
+</T>
+

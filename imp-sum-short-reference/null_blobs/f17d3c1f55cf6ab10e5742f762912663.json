@@ -1,0 +1,15 @@
+<T>
+  <k>
+    int sum, .Ids;
+    n = 5;
+    sum = 0;
+    while (! n <= 0) {
+      sum = sum + n;
+      n = n + -1;
+    }
+  </k>
+  <state>
+    n |-> 0
+  </state>
+</T>
+

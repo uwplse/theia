@@ -1,0 +1,13 @@
+<T>
+  <k>
+    n = 0; ~> while (! n <= 0) {
+      sum = sum + n;
+      n = n + -1;
+    }
+  </k>
+  <state>
+    sum |-> 15
+    n |-> 1
+  </state>
+</T>
+

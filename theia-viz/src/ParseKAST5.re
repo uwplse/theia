@@ -15,7 +15,9 @@
   Copy from version 2, which is able to parse some things correctly, though it doesn’t handle the (n, n) case correctly. It wasn’t recursive enough iirc
 
   TODO:
-    - fix printing for more complex examples. this will take some work b/c callcc breaks some of my assumptions for where sequence nodes can arise maybe
+    - make type checking work
+    - write a version of the currying python tutor example
+    - imperative language?
 */
 
 let rlist = (l) => l |> Array.of_list |> React.array;
@@ -26,7 +28,9 @@ let (--) = (i, j) => {
   aux(j, [])
 };
 
+/* TODO: modularize per example */
 let values = [["closure"], ["muclosure"], ["cc"]];
+let labels = ["LAMBDA", "LAMBDA-SYNTAX", "IMP-SYNTAX"];
 
 let rec appNodesEq = (v1, v2) => {
   switch (v1, v2) {
@@ -85,9 +89,13 @@ let cleanLabel = (suffix, s) => {
   }
 };
 
+let flip = (f, x, y) => f(y, x);
+
+let cleanLabels = List.fold_left(flip(cleanLabel), _, labels);
+
 /* extracts name from a freezer */
 let extractName = (s) => {
-  s |> Js.String.substring(~from=8, ~to_=Js.String.length(s) - 2) |> cleanLabel("_LAMBDA") |> cleanLabel("_LAMBDA-SYNTAX")
+  s |> Js.String.substring(~from=8, ~to_=Js.String.length(s) - 2) |> cleanLabels
 };
 
 module Decode = {
@@ -144,7 +152,7 @@ module Decode = {
   }
   and apply = (json) => {
     Apply(
-      json |> field("label", string) |> cleanLabel("_LAMBDA") |> cleanLabel("_LAMBDA-SYNTAX") |> Js.String.split("_") |> Array.to_list,
+      json |> field("label", string) |> cleanLabels |> Js.String.split("_") |> Array.to_list,
       json |> field("args", list(kNode))
     )
   }
@@ -639,6 +647,20 @@ let make = () => {
                                  ~print=Theia,
                                  dispatch)}>
       {React.string("factorial letrec")}
+    </button>
+    <button onClick={handleClick(~path="http://localhost:8080/imp-sum-short/",
+                                 ~log="execute-694863693.log",
+                                 /* ~path="http://localhost:8080/imp-sum/",
+                                 ~log="execute-1666052739.log", */
+                                 ~print=Theia,
+                                 dispatch)}>
+      {React.string("imp plus")}
+    </button>
+    <button onClick={handleClick(~path="http://localhost:8080/curried-add/",
+                                 ~log="execute-776883472.log",
+                                 ~print=Theia,
+                                 dispatch)}>
+      {React.string("curried add")}
     </button>
     /* this one doesn't work b/c it doesn't clean the data correctly. need to be smarter about data cleaning. */
     /* some use LAMBDA suffixes and some use LAMBDA-SYNTAX. need to know which one to use */

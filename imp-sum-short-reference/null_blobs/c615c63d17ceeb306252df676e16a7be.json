@@ -1,0 +1,13 @@
+<T>
+  <k>
+    15 ~> #freezer_=_;_IMP-SYNTAX0_ ( sum ) ~> n = n + -1; ~> while (! n <= 0) {
+      sum = sum + n;
+      n = n + -1;
+    }
+  </k>
+  <state>
+    sum |-> 14
+    n |-> 1
+  </state>
+</T>
+

@@ -1,0 +1,14 @@
+<T>
+  <k>
+    closure ( a |-> 2 , b , a + b ) 2
+  </k>
+  <env>
+    .Map
+  </env>
+  <store>
+    1 |-> closure ( .Map , a , lambda b . ( a + b ) )
+    2 |-> 1
+    3 |-> closure ( a |-> 2 , b , a + b )
+  </store>
+</T>
+
