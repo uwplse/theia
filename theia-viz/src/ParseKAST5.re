@@ -1,23 +1,12 @@
-/* Like V4, but doesn't flatten sequences anymore since they don't flatten as far as I thought */
+/* Like V4, but doesn't pre-flatten sequences anymore since they don't flatten as far as I thought */
 
 /* 
-
-  Need to remove flattening of KSequence nodes, it doesn’t flatten nested sequences, which poses a problem for my assumptions.
-
-  Instead I need to visualize recursively. Not entirely sure how it works.
-
-  Sequence is
-  (n, n) => ~>
-  (f, f) => more freezers?
-  (n, f) =>  beginning of continuation
-  (f, n) => shouldn’t happen?
-
-  Copy from version 2, which is able to parse some things correctly, though it doesn’t handle the (n, n) case correctly. It wasn’t recursive enough iirc
-
   TODO:
     - make type checking work
     - write a version of the currying python tutor example
     - imperative language?
+    - fix prop key warning
+    - speed up using react devtools
 */
 
 let rlist = (l) => l |> Array.of_list |> React.array;
@@ -28,7 +17,7 @@ let (--) = (i, j) => {
   aux(j, [])
 };
 
-/* TODO: modularize per example */
+/* TODO: modularize per example/language */
 let values = [["closure"], ["muclosure"], ["cc"]];
 let labels = ["LAMBDA", "LAMBDA-SYNTAX", "IMP-SYNTAX"];
 
@@ -54,7 +43,8 @@ type kNode =
   | Freezer(list(string), list(kNode), int)
   | Sequence((kNode, kNode))
   | Map(list(kNode))
-  | KV((kNode, kNode));
+  | KV((kNode, kNode))
+  | Cell(string, list(kNode));
 
 type cell('a) = {label: string, body: list('a)};
 
@@ -76,6 +66,7 @@ let rec kNodeDebugPrint = (k) =>
   | Sequence((l, r)) => "Sequence(" ++ kNodeDebugPrint(l) ++ ", " ++ kNodeDebugPrint(r) ++ ")"
   | Map(l) => "Map(" ++ (List.map(kNodeDebugPrint, l) |> prettyList) ++ ")"
   | KV((k, v)) => "KV(" ++ kNodeDebugPrint(k) ++ ", " ++ kNodeDebugPrint(v) ++ ")"
+  | Cell(label, children) => "Cell(" ++ label ++ ", " ++ prettyList(List.map(kNodeDebugPrint, children)) ++ ")"
   }
 and debugEntry = ((k, v)) => kNodeDebugPrint(k) ++ "->" ++ kNodeDebugPrint(v);
 
@@ -110,14 +101,13 @@ module Decode = {
         | _ => (json) => json |> cell |> (x => [x])
         }
     ))(json)
-    /* json |> field("args", list(kNode)) |> List.nth(_, 0) */
   }
   and cell = (json) => {
     let s = json |> field("label", string);
-    {
-      label: s |> Js.String.substring(~from=1, ~to_=(Js.String.length(s) - 1)),
-      body: json |> field("args", list(kNode)),
-    }
+    Cell(
+      s |> Js.String.substring(~from=1, ~to_=(Js.String.length(s) - 1)),
+      json |> field("args", list(kNode))
+    )
   }
   and kNode = (json) => {
     (field("node", string) |> andThen(
@@ -142,6 +132,7 @@ module Decode = {
         | ".Map" => kEmptyMap
         | "_Map_" => kMap
         | "_|->_" => kKV /* TODO: if this case is hit, it might always be a single element map so just make a special case */
+        | _ when Js.String.startsWith("<", s) && Js.String.endsWith(">", s) => cell
         | _ => apply
         }
     ))(json)
@@ -234,6 +225,7 @@ type kNode2 =
   | Kont2(kNode2, list(freezer))
   | KV2((kNode2, kNode2))
   | Value2(list(string), list(kNode2))
+  | Cell2(string, list(kNode2))
 and freezer = {ops: list(string), args: list(kNode2), holePos: int};
 
 let rec kNode2DebugPrint = (k) =>
@@ -246,6 +238,7 @@ let rec kNode2DebugPrint = (k) =>
   | Map2(l) => "Map2(" ++ (List.map(kNode2DebugPrint, l) |> prettyList) ++ ")"
   | Kont2(e, fs) => "Kont2(" ++ kNode2DebugPrint(e) ++ ", " ++ (List.map(debugFreezer, fs) |> prettyList) ++ ")"
   | KV2((k, v)) => "KV2(" ++ kNode2DebugPrint(k) ++ ", " ++ kNode2DebugPrint(v) ++ ")"
+  | Cell2(s, args) => "Cell2(" ++ s ++ ", " ++ prettyList(List.map(kNode2DebugPrint, args)) ++ ")"
   }
 and debugEntry2 = ((k, v)) => kNode2DebugPrint(k) ++ "->" ++ kNode2DebugPrint(v)
 and debugFreezer = ({ops, args, holePos}) => {
@@ -262,6 +255,7 @@ let rec kNode2DebugPrintShort = (k) =>
   | Kont2(_) => "Kont"
   | KV2(_) => "KV"
   | Value2(_, args) => "Val(" ++ prettyList(List.map(kNode2DebugPrintShort, args)) ++ ")"
+  | Cell2(_, args) => "Cell(" ++ prettyList(List.map(kNode2DebugPrintShort, args)) ++ ")"
   };
 
 type seqDebug =
@@ -270,6 +264,7 @@ type seqDebug =
   | FreezerS(list(seqDebug))
   | MapS(list(seqDebug))
   | KVS(seqDebug, seqDebug)
+  | CellS(list(seqDebug))
   | NoSeq;
 
 let rec seqDebugPrint = (s) =>
@@ -280,6 +275,7 @@ let rec seqDebugPrint = (s) =>
   | FreezerS(ss) => "F(" ++ prettyList(List.map(seqDebugPrint, ss)) ++ ")"
   | MapS(ss) => "Map(" ++ prettyList(List.map(seqDebugPrint, ss)) ++ ")"
   | KVS(l, r) => "KV(" ++ seqDebugPrint(l) ++ ", " ++ seqDebugPrint(r) ++ ")"
+  | CellS(ss) => "Cell(" ++ prettyList(List.map(seqDebugPrint, ss)) ++ ")"
   };
 
 let notIsSeq = (s) =>
@@ -328,7 +324,15 @@ let rec kNodeToSeqDebug = (kn) =>
         KVS(cK, cV)
       }
     }
-  };
+  | Cell(_, kns) => {
+    let convertedKNS = List.map(kNodeToSeqDebug, kns);
+    if (noSeq(convertedKNS)) {
+      NoSeq
+    } else {
+      ApplyS(convertedKNS)
+    }
+  }
+};
 
 let rec splitSeqAux = (l) =>
   switch (l) {
@@ -368,25 +372,6 @@ let convertToKont = (l: list(kNode2)) : kNode2 =>
 let convertSequence = (s) => Sequence2(s |> splitSeq |> List.map(convertToKont));
 
 /* TODO: for now, assuming that KV is a single-entry map */
-/* TODO: This is buggy!
-
-Currently does this
-Apply (["<k>"], [Sequence ([Apply (["", "+", ""], [Token (1), Apply (["", "*", ""], [Token (2), Token (3)])]), Sequence ([Freezer([, /, ], [Token(4)], 0), Freezer([, <=, ], [Token(1)], 0)])])])
-=>
-Apply2(["<k>"], [Sequence2([Apply2(["", "+", ""], [Token2(1), Apply2(["", "*", ""], [Token2(2), Token2(3)])]), Sequence2([Freezer2([, /, ], [Token2(4)], 0), Freezer2([, <=, ], [Token2(1)], 0)])])])
-=>
-Apply2(["<k>"], [Sequence2([Apply2(["", "+", ""], [Token2(1), Apply2(["", "*", ""], [Token2(2), Token2(3)])]), Sequence2([])])])
-
-*/
-
-/* 
-
-Sequence([
-  Apply(["", "+", ""], [Token(1), Apply(["", "*", ""], [Token(2), Token(3)])]),
-  Sequence([ <-- this should be a list of freezers!!! there shouldn't be a sequence node here. maybe flatten doesn't work like I think it does
-    Freezer([, /, ], [Token(4)], 0),
-    Freezer([, <=, ], [Token(1)], 0)])])])
-*/
 
 /* top-level visiting */
 let rec kNodeToKNode2 = (kn) =>
@@ -402,10 +387,10 @@ let rec kNodeToKNode2 = (kn) =>
   /* when we hit a sequence node, switch to aux */
   | Sequence(_) => convertSequence(flattenSequence(kn, []))
   | Map(kns) => Map2(List.map(compileKeys2, kns))
-  | KV(_) => Map2([compileKeys2(kn)]);
+  | KV(_) => Map2([compileKeys2(kn)])
+  | Cell(label, kns) => Cell2(label, List.map(kNodeToKNode2, kns))
   }
 /* flatten sequence. we assume that the sequence is a spined tree that leans right */
-/* TODO: This flattening is correct, but I still need to combine the freezers into a list using the split code form earlier. i.e. need to make Kont nodes */
 and flattenSequence = (kn, seqList) => {
   switch (kn) {
   | Sequence((l, r)) => {
@@ -422,48 +407,6 @@ and compileKeys2 = (kn) =>
   | _ => raise(CompileError("Expected key-value pair")) /* todo: add node to this error */
   };
 
-/* let rec kNodeToKNode2 = (kn) =>
-  switch (kn) {
-    | Token(s) => Token2(s)
-    | Apply(ss, kns) => Apply2(ss, List.map(kNodeToKNode2, kns))
-    | Freezer(ss, kns, i) => FreezerList2([{ops: ss, args: List.map(kNodeToKNode2, kns), holePos: i}])
-    | Sequence((l, r)) => compileSequence2(l, r)
-    | Map(kns) => Map2(List.map(compileKeys2, kns))
-    | KV(_) => Map2([compileKeys2(kn)]);
-    }
-and kNodeToKNode2Aux = (kn) =>
-switch (kn) {
-  | Token(s) => Token2(s)
-  | Apply(ss, kns) => Apply2(ss, List.map(kNodeToKNode2Aux, kns))
-  | Freezer(ss, kns, i) => FreezerList2([{ops: ss, args: List.map(kNodeToKNode2Aux, kns), holePos: i}])
-  | Sequence((l, r)) => compileSequence2Aux(kNodeToKNode2Aux(l), kNodeToKNode2Aux(r))
-  | Map(kns) => Map2(List.map(compileKeys2, kns))
-  | KV(_) => Map2([compileKeys2(kn)]);
-  }
-and compileSequence2Aux = (l, r) => {
-  switch (r) {
-  | Sequence
-  }
-  /* switch (l, r) {
-  | (FreezerList2(fs1), FreezerList2(fs2)) => FreezerList2(fs1 @ fs2)
-  | (_, FreezerList2(fs)) => Kont2(l, fs)
-  | (_, _) => Sequence2([l, r])
-  | _ => raise(CompileError("unknown case: \nl: " ++ kNode2DebugPrint(l) ++ "\nr: " ++ kNode2DebugPrint(r)))
-  } */
-}
-/* TODO: this shouldn't always return a continuation */
-and compileSequence2 = (l, r) => {
-  /* compileSequence2Aux(kNodeToKNode2(l), kNodeToKNode2(r)) */
-  let visitedLeft = kNodeToKNode2Aux(l);
-  let visitedRight = kNodeToKNode2Aux(r);
-  Sequence2(compileSequence2Aux(visitedLeft, visitedRight))
-}
-and compileKeys2 = (kn) =>
-  switch (kn) {
-  | KV((k, v)) => KV2((kNodeToKNode2(k), kNodeToKNode2(v)))
-  | _ => raise(CompileError("Expected key-value pair")) /* todo: add node to this error */
-  }; */
-
 /* and finally pretty printing! */
 let render_open_brack = <span style=(ReactDOMRe.Style.make(~color="Crimson", ()))> {ReasonReact.string("[")} </span>;
 let render_close_brack = <span style=(ReactDOMRe.Style.make(~color="Crimson", ()))> {ReasonReact.string("]")} </span>;
@@ -472,7 +415,7 @@ let rec kn2Pretty = (k) =>
   switch (k) {
   | Token2(s) => <> {React.string(s)} </>
   | Apply2(ops, args) => Util.interleave(List.map(React.string, ops), List.map(kn2Pretty, args)) |> Util.prettierList
-  | Freezer2(_) => raise(CompileError("There shouldn't be a Freezer2 outside a Kont2 node!"))
+  | Freezer2(_) => raise(CompileError("There shouldn't be a Freezer2!"))
   /* | Sequence2(l) => <> {Util.interleave(List.map(kn2Pretty, l), (1--(List.length(l) - 1)) |> List.map(_ => React.string(" ~> "))) |> Util.prettierList} </> */
   | Sequence2(l) => <> {List.mapi((i, kn) => <div key={string_of_int(i)}> {kn2Pretty(kn)} </div>, l) |> List.rev |> Array.of_list |> React.array} </>
   /* | Sequence2(l) => <> {kn2PrettyList(l)} </> */ /* TODO: almost right except for subexpressions that contain sequences like in callcc.
@@ -507,7 +450,21 @@ let rec kn2Pretty = (k) =>
   | Value2(ops, args) =>
     <fieldset style=(ReactDOMRe.Style.make(~display="inline", ()))>
       <legend> {Util.interleave(ops, (1--(List.length(ops) - 1)) |> List.map(_ => "•")) |> List.fold_left((++), "") |> React.string} </legend>
-      {Util.interleave(List.map(kn2Pretty, args), (1--(List.length(args) - 1)) |> List.map(_ => React.string("|"))) |> Util.prettierList(~parens=false)}
+      /* {Util.interleave(List.map(kn2Pretty, args), (1--(List.length(args) - 1)) |> List.map(_ => React.string("|"))) |> Util.prettierList(~parens=false)} */
+      /* TODO: add padding */
+      <table style=(ReactDOMRe.Style.make(~display="inline-table", ()))>
+        /* TODO: thead? */
+        <tbody>
+          <tr>
+            {args |> List.mapi((i, arg) => <td key={string_of_int(i)} style=(ReactDOMRe.Style.make(~border="1px solid gray", ()))> {kn2Pretty(arg)} </td>) |> rlist}
+          </tr>
+        </tbody>
+      </table>
+    </fieldset>
+  | Cell2(label, children) =>
+    <fieldset>
+      <legend> {React.string(label)} </legend>
+      {rlist(List.map(kn2Pretty, children))}
     </fieldset>
 }
 and prettyFreeze = ({ops, args, holePos}, arg) => {
@@ -519,7 +476,7 @@ and prettyKont2List = (kn, fs) =>
   | [] => kn2Pretty(kn)
   | [f, ...fs] => prettyFreeze(f, prettyKont2List(kn, fs))
   }
-and kn2PrettyList = (xs) => List.fold_left((s1, s2) => <> s1 <div> {kn2Pretty(s2)} </div> </>, <> </>, xs);
+and kn2PrettyList = (xs) => xs |> List.map((s) => <div> {kn2Pretty(s)} </div>) |> List.fold_left((s1, s2) => <> s1 s2 </>, <> </>);
 
 let fetchLoggedStates = (file, callback) => {
   Js.Promise.(
@@ -572,14 +529,14 @@ type print =
   | Theia;
 
 /* TODO: error handling */
-let handleClick = (~path, ~log, ~print, dispatch, _event) => {
+let handleClick = (~path, ~log, ~print=Theia, dispatch, _event) => {
   let callback = (json) =>
     switch (print) {
-    | KNode => json |> Decode.kAst |> cellsPrint(kns => kns |> List.map(ast => ast |> kNodeDebugPrint |> React.string) |> rlist) |> rlist
-    | KNode2 => json |> Decode.kAst |> cellsPrint(kns => kns |> List.map(ast => ast |> kNodeToKNode2 |> kNode2DebugPrint |> React.string) |> rlist) |> rlist
-    | KNode2Short => json |> Decode.kAst |> cellsPrint(kns => kns |> List.map(ast => ast |> kNodeToKNode2 |> kNode2DebugPrintShort |> React.string) |> rlist) |> rlist
+    | KNode => json |> Decode.kAst |> List.mapi((i, ast) => <div key={string_of_int(i)}> {ast |> kNodeDebugPrint |> React.string} </div>) |> rlist
+    | KNode2 => json |> Decode.kAst |> List.map(ast => ast |> kNodeToKNode2 |> kNode2DebugPrint |> React.string) |> rlist
+    | KNode2Short => json |> Decode.kAst |> List.map(ast => ast |> kNodeToKNode2 |> kNode2DebugPrintShort |> React.string) |> rlist
     | Json => json |> Json.stringify |> React.string
-    | Theia => json |> Decode.kAst |> cellsPrint(kns => kns |> List.map(kNodeToKNode2) |> kn2PrettyList) |> rlist
+    | Theia => json |> Decode.kAst |> List.map(kNodeToKNode2) |> kn2PrettyList
     /* | SeqDebug =>
         <>
         <div>
@@ -621,6 +578,7 @@ let make = () => {
   };
   Util.useKeyPressed(handleKeyPressed);
 
+  /* TODO: use a drop-down menu? */
   <div>
     <button onClick={_ => dispatch(StepBack)}>
       {React.string("<-")}
@@ -630,13 +588,11 @@ let make = () => {
     </button>
     <button onClick={handleClick(~path="http://localhost:8080/arithmetic-log/",
                                  ~log="execute-423906835.log",
-                                 ~print=Theia,
                                  dispatch)}>
       {React.string("arith-rw")}
     </button>
     <button onClick={handleClick(~path="http://localhost:8080/lets++-callcc-env1-5/",
                                  ~log="execute-1800280225.log",
-                                 ~print=Theia,
                                  dispatch)}>
       {React.string("callcc")}
     </button>
@@ -644,7 +600,6 @@ let make = () => {
                                  ~log="execute-332225037.log",
                                  /* ~path="http://localhost:8080/lets++-factorial-letrec-short/",
                                  ~log="execute-1327604975.log", */
-                                 ~print=Theia,
                                  dispatch)}>
       {React.string("factorial letrec")}
     </button>
@@ -652,22 +607,33 @@ let make = () => {
                                  ~log="execute-694863693.log",
                                  /* ~path="http://localhost:8080/imp-sum/",
                                  ~log="execute-1666052739.log", */
-                                 ~print=Theia,
                                  dispatch)}>
       {React.string("imp plus")}
     </button>
     <button onClick={handleClick(~path="http://localhost:8080/curried-add/",
                                  ~log="execute-776883472.log",
-                                 ~print=Theia,
                                  dispatch)}>
       {React.string("curried add")}
     </button>
-    /* this one doesn't work b/c it doesn't clean the data correctly. need to be smarter about data cleaning. */
-    /* some use LAMBDA suffixes and some use LAMBDA-SYNTAX. need to know which one to use */
-    /* <button onClick={handleClick(~path="http://localhost:8080/types-plus-log/",
+    <button onClick={handleClick(~path="http://localhost:8080/types-plus-5/",
                                  ~log="execute-172182753.log",
+                                 /* ~print=Json, */
                                  dispatch)}>
       {React.string("types plus")}
+    </button>
+    /* TODO: this is returning some weird results. Not all type variables are distinct. Perhaps need to be tracking a different type of state. */
+    <button onClick={handleClick(~path="http://localhost:8080/types-composition/",
+                                 ~log="execute-1458594712.log",
+                                 /* ~print=Json, */
+                                 dispatch)}>
+      {React.string("types composition")}
+    </button>
+    /* TODO: breaks b/c freezer assumptions are violated */
+    /* <button onClick={handleClick(~path="http://localhost:8080/types-if/",
+                                 ~log="execute-587178947.log",
+                                 ~print=Json,
+                                 dispatch)}>
+      {React.string("types if")}
     </button> */
     {
       let renderConfig = (my_option) =>
