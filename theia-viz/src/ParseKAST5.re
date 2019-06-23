@@ -7,6 +7,9 @@
     - imperative language?
     - fix prop key warning
     - speed up using react devtools
+    - *KOOL*
+    - add two states side-by-side
+    - print original program text
 */
 
 let rlist = (l) => l |> Array.of_list |> React.array;
@@ -19,7 +22,7 @@ let (--) = (i, j) => {
 
 /* TODO: modularize per example/language */
 let values = [["closure"], ["muclosure"], ["cc"]];
-let labels = ["LAMBDA", "LAMBDA-SYNTAX", "IMP-SYNTAX"];
+let labels = ["LAMBDA", "LAMBDA-SYNTAX", "IMP-SYNTAX", "FUN-UNTYPED-COMMON"];
 
 let rec appNodesEq = (v1, v2) => {
   switch (v1, v2) {
@@ -627,6 +630,12 @@ let make = () => {
                                  /* ~print=Json, */
                                  dispatch)}>
       {React.string("types composition")}
+    </button>
+    <button onClick={handleClick(~path="http://localhost:8080/fun-factorial/",
+                                 ~log="execute-1500377579.log",
+                                 /* ~print=Json, */
+                                 dispatch)}>
+      {React.string("fun factorial")}
     </button>
     /* TODO: breaks b/c freezer assumptions are violated */
     /* <button onClick={handleClick(~path="http://localhost:8080/types-if/",
