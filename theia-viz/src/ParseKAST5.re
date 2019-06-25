@@ -599,10 +599,12 @@ let make = () => {
                                  dispatch)}>
       {React.string("callcc")}
     </button>
-    <button onClick={handleClick(~path="http://localhost:8080/lets++-factorial-letrec-5/",
-                                 ~log="execute-332225037.log",
+    <button onClick={handleClick(/* ~path="http://localhost:8080/lets++-factorial-letrec-5/",
+                                 ~log="execute-332225037.log", */
                                  /* ~path="http://localhost:8080/lets++-factorial-letrec-short/",
                                  ~log="execute-1327604975.log", */
+                                 ~path="http://localhost:8080/lets++-factorial-letrec-semishort/",
+                                 ~log="execute-2113856637.log",
                                  dispatch)}>
       {React.string("factorial letrec")}
     </button>
@@ -655,9 +657,20 @@ let make = () => {
       | None => <> {React.string("No state!")} </>
       | Some(s) =>
         <div>
-          /* {s->Belt.List.get(state.currentConfig - 1)->renderConfig} */
-          {s->Belt.List.get(state.currentConfig)->renderConfig}
-          /* {s->Belt.List.get(state.currentConfig + 1)->renderConfig} */
+          <div style=(ReactDOMRe.Style.make(~float="left", ~minWidth="200px", ()))>
+            /* {s->Belt.List.get(state.currentConfig - 1)->renderConfig} */
+            {s->Belt.List.get(state.currentConfig)->renderConfig}
+            /* {s->Belt.List.get(state.currentConfig + 1)->renderConfig} */
+          </div>
+          <div style=(ReactDOMRe.Style.make(~float="left", ~minWidth="200px", ()))>
+            <ReactVisualDiff
+              left={s->Belt.List.get(state.currentConfig)->renderConfig}
+              right={s->Belt.List.get(state.currentConfig + 1)->renderConfig}
+            />
+          </div>
+          <div style=(ReactDOMRe.Style.make(~float="left", ~minWidth="200px", ()))>
+          {s->Belt.List.get(state.currentConfig + 1)->renderConfig}
+          </div>
         </div>
       }
     }

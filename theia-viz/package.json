@@ -22,6 +22,7 @@
     "bs-webapi": "^0.15.2",
     "react": "^16.8.1",
     "react-dom": "^16.8.1",
+    "react-visual-diff": "^0.4.3",
     "reason-react": ">=0.7.0",
     "requirejs": "^2.3.6"
   },

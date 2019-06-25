@@ -18,7 +18,8 @@
     "reason-react",
     "@glennsl/bs-json",
     "bs-fetch",
-    "bs-webapi"
+    "bs-webapi",
+    "react-visual-diff"
   ],
   "refmt": 3
 }
