@@ -17,4 +17,4 @@ let make = (~left, ~right, children) =>
 /* [@bs.module "../node_modules/react-visual-diff/dist/index.js"][@react.component]
 external make: (~left: ReasonReact.reactElement, ~right: ReasonReact.reactElement) => React.element = "default"; */
 [@bs.module][@react.component]
-external make: (~left: ReasonReact.reactElement, ~right: ReasonReact.reactElement) => React.element = "../node_modules/react-visual-diff/dist/index.js";
+external make: (~left: ReasonReact.reactElement, ~right: ReasonReact.reactElement, ~diffProps: array(string)) => React.element = "../node_modules/react-visual-diff/dist/index.js";

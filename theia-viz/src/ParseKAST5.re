@@ -411,16 +411,16 @@ and compileKeys2 = (kn) =>
   };
 
 /* and finally pretty printing! */
-let render_open_brack = <span style=(ReactDOMRe.Style.make(~color="Crimson", ()))> {ReasonReact.string("[")} </span>;
-let render_close_brack = <span style=(ReactDOMRe.Style.make(~color="Crimson", ()))> {ReasonReact.string("]")} </span>;
+let render_open_brack = <span style=(ReactDOMRe.Style.make(~color="blue", ()))> {ReasonReact.string("[")} </span>;
+let render_close_brack = <span style=(ReactDOMRe.Style.make(~color="blue", ()))> {ReasonReact.string("]")} </span>;
 
-let rec kn2Pretty = (k) =>
+let rec kn2Pretty = (~parens=true, k) =>
   switch (k) {
   | Token2(s) => <> {React.string(s)} </>
-  | Apply2(ops, args) => Util.interleave(List.map(React.string, ops), List.map(kn2Pretty, args)) |> Util.prettierList
+  | Apply2(ops, args) => Util.interleave(List.map(React.string, ops), List.map(kn2Pretty, args)) |> Util.prettierList(~parens)
   | Freezer2(_) => raise(CompileError("There shouldn't be a Freezer2!"))
   /* | Sequence2(l) => <> {Util.interleave(List.map(kn2Pretty, l), (1--(List.length(l) - 1)) |> List.map(_ => React.string(" ~> "))) |> Util.prettierList} </> */
-  | Sequence2(l) => <> {List.mapi((i, kn) => <div key={string_of_int(i)}> {kn2Pretty(kn)} </div>, l) |> List.rev |> Array.of_list |> React.array} </>
+  | Sequence2(l) => <> {List.mapi((i, kn) => <div key={string_of_int(i)}> {kn2Pretty(~parens=false, kn)} </div>, l) |> List.rev |> Array.of_list |> React.array} </>
   /* | Sequence2(l) => <> {kn2PrettyList(l)} </> */ /* TODO: almost right except for subexpressions that contain sequences like in callcc.
     I think it's better to just have a list of environments than a store them in the k node. This is a semantics problem.
     There are two ways to affect the visualization: change how individual elements are rendered or change the semantics. */
@@ -467,17 +467,23 @@ let rec kn2Pretty = (k) =>
   | Cell2(label, children) =>
     <fieldset>
       <legend> {React.string(label)} </legend>
-      {rlist(List.map(kn2Pretty, children))}
+      {rlist(List.map(kn2Pretty(~parens=false), children))}
     </fieldset>
 }
-and prettyFreeze = ({ops, args, holePos}, arg) => {
+/* bracket style */
+and prettyFreeze = (~nestNum=0, {ops, args, holePos}, arg) => {
   let newArgs = Util.insert(<> render_open_brack arg render_close_brack </>, List.map(kn2Pretty, args), holePos);
-  Util.interleave(List.map(React.string, ops), newArgs) |> Util.prettierList
+  Util.interleave(List.map(React.string, ops), newArgs) |> Util.prettierList(~parens=false)
 }
-and prettyKont2List = (kn, fs) =>
+/* underline style */
+/* and prettyFreeze = (~nestNum=0, {ops, args, holePos}, arg) => {
+  let newArgs = Util.insert(<span style=(ReactDOMRe.Style.make(~borderBottom="1px solid blue", ~paddingBottom=(string_of_int(nestNum*2) ++ "px"), ()))> arg </span>, List.map(kn2Pretty, args), holePos);
+  Util.interleave(List.map(React.string, ops), newArgs) |> Util.prettierList
+} */
+and prettyKont2List = (~nestNum=0, kn, fs) =>
   switch (fs) {
-  | [] => kn2Pretty(kn)
-  | [f, ...fs] => prettyFreeze(f, prettyKont2List(kn, fs))
+  | [] => kn2Pretty(~parens=false, kn)
+  | [f, ...fs] => prettyFreeze(~nestNum, f, prettyKont2List(~nestNum=nestNum+1, kn, fs))
   }
 and kn2PrettyList = (xs) => xs |> List.map((s) => <div> {kn2Pretty(s)} </div>) |> List.fold_left((s1, s2) => <> s1 s2 </>, <> </>);
 
@@ -615,8 +621,10 @@ let make = () => {
                                  dispatch)}>
       {React.string("imp plus")}
     </button>
-    <button onClick={handleClick(~path="http://localhost:8080/curried-add/",
-                                 ~log="execute-776883472.log",
+    <button onClick={handleClick(~path="http://localhost:8080/curried-add-2/",
+                                 ~log="execute-50597497.log",
+                                 /* ~path="http://localhost:8080/curried-add/",
+                                 ~log="execute-776883472.log", */
                                  dispatch)}>
       {React.string("curried add")}
     </button>
@@ -654,7 +662,7 @@ let make = () => {
         };
 
       switch (state.trace) {
-      | None => <> {React.string("No state!")} </>
+      | None => <> </>
       | Some(s) =>
         <div>
           <div style=(ReactDOMRe.Style.make(~float="left", ~minWidth="200px", ()))>
@@ -666,6 +674,7 @@ let make = () => {
             <ReactVisualDiff
               left={s->Belt.List.get(state.currentConfig)->renderConfig}
               right={s->Belt.List.get(state.currentConfig + 1)->renderConfig}
+              diffProps={[|"children", "type", "className", "style"|]}
             />
           </div>
           <div style=(ReactDOMRe.Style.make(~float="left", ~minWidth="200px", ()))>
