@@ -22,7 +22,7 @@ let (--) = (i, j) => {
 
 /* TODO: modularize per example/language */
 let values = [["closure"], ["muclosure"], ["cc"]];
-let labels = ["LAMBDA", "LAMBDA-SYNTAX", "IMP-SYNTAX", "FUN-UNTYPED-COMMON"];
+let labels = ["LAMBDA", "LAMBDA-SYNTAX", "IMP-SYNTAX", "FUN-UNTYPED-COMMON", "SML-SYNTAX"];
 
 let rec appNodesEq = (v1, v2) => {
   switch (v1, v2) {
@@ -420,7 +420,8 @@ let rec kn2Pretty = (~parens=true, k) =>
   | Apply2(ops, args) => Util.interleave(List.map(React.string, ops), List.map(kn2Pretty, args)) |> Util.prettierList(~parens)
   | Freezer2(_) => raise(CompileError("There shouldn't be a Freezer2!"))
   /* | Sequence2(l) => <> {Util.interleave(List.map(kn2Pretty, l), (1--(List.length(l) - 1)) |> List.map(_ => React.string(" ~> "))) |> Util.prettierList} </> */
-  | Sequence2(l) => <> {List.mapi((i, kn) => <div key={string_of_int(i)}> {kn2Pretty(~parens=false, kn)} </div>, l) |> List.rev |> Array.of_list |> React.array} </>
+  | Sequence2([kn]) => <> {kn2Pretty(~parens=false, kn)} </>
+  | Sequence2(l) => <> {List.mapi((i, kn) => <div key={string_of_int(i)} style=(ReactDOMRe.Style.make(~marginTop="10px", ()))> {kn2Pretty(~parens=false, kn)} </div>, l) |> List.rev |> Array.of_list |> React.array} </>
   /* | Sequence2(l) => <> {kn2PrettyList(l)} </> */ /* TODO: almost right except for subexpressions that contain sequences like in callcc.
     I think it's better to just have a list of environments than a store them in the k node. This is a semantics problem.
     There are two ways to affect the visualization: change how individual elements are rendered or change the semantics. */
@@ -444,7 +445,7 @@ let rec kn2Pretty = (~parens=true, k) =>
           }
         </tbody>
       </table>
-  | Kont2(kn, fs) => prettyKont2List(kn, List.rev(fs))
+  | Kont2(kn, fs) => prettyKont2List(~parens=false, kn, List.rev(fs))
   | KV2((k, v)) =>
       <>
         <td style=(ReactDOMRe.Style.make(~border="1px solid black", ()))> {kn2Pretty(k)} </td>
@@ -459,7 +460,7 @@ let rec kn2Pretty = (~parens=true, k) =>
         /* TODO: thead? */
         <tbody>
           <tr>
-            {args |> List.mapi((i, arg) => <td key={string_of_int(i)} style=(ReactDOMRe.Style.make(~border="1px solid gray", ()))> {kn2Pretty(arg)} </td>) |> rlist}
+            {args |> List.mapi((i, arg) => <td key={string_of_int(i)} style=(ReactDOMRe.Style.make(~border="1px solid gray", ()))> {kn2Pretty(~parens=false, arg)} </td>) |> rlist}
           </tr>
         </tbody>
       </table>
@@ -480,12 +481,12 @@ and prettyFreeze = (~nestNum=0, {ops, args, holePos}, arg) => {
   let newArgs = Util.insert(<span style=(ReactDOMRe.Style.make(~borderBottom="1px solid blue", ~paddingBottom=(string_of_int(nestNum*2) ++ "px"), ()))> arg </span>, List.map(kn2Pretty, args), holePos);
   Util.interleave(List.map(React.string, ops), newArgs) |> Util.prettierList
 } */
-and prettyKont2List = (~nestNum=0, kn, fs) =>
+and prettyKont2List = (~nestNum=0, ~parens=false, kn, fs) =>
   switch (fs) {
-  | [] => kn2Pretty(~parens=false, kn)
-  | [f, ...fs] => prettyFreeze(~nestNum, f, prettyKont2List(~nestNum=nestNum+1, kn, fs))
+  | [] => kn2Pretty(~parens, kn)
+  | [f, ...fs] => prettyFreeze(~nestNum, f, prettyKont2List(~nestNum=nestNum+1, ~parens, kn, fs))
   }
-and kn2PrettyList = (xs) => xs |> List.map((s) => <div> {kn2Pretty(s)} </div>) |> List.fold_left((s1, s2) => <> s1 s2 </>, <> </>);
+and kn2PrettyList = (xs) => xs |> List.map((s) => <div style=(ReactDOMRe.Style.make(~fontSize="14px", ()))> {kn2Pretty(s)} </div>) |> List.fold_left((s1, s2) => <> s1 s2 </>, <> </>);
 
 let fetchLoggedStates = (file, callback) => {
   Js.Promise.(
@@ -568,6 +569,8 @@ let handleClick = (~path, ~log, ~print=Theia, dispatch, _event) => {
     |> ignore;
 };
 
+type traceOutput = {path: string, log: string, name: string};
+
 [@react.component]
 let make = () => {
   let (state, dispatch) = React.useReducer((state, action) =>
@@ -595,65 +598,24 @@ let make = () => {
     <button onClick={_ => dispatch(StepForward)}>
       {React.string("->")}
     </button>
-    <button onClick={handleClick(~path="http://localhost:8080/arithmetic-log/",
-                                 ~log="execute-423906835.log",
-                                 dispatch)}>
-      {React.string("arith-rw")}
-    </button>
-    <button onClick={handleClick(~path="http://localhost:8080/lets++-callcc-env1-5/",
-                                 ~log="execute-1800280225.log",
-                                 dispatch)}>
-      {React.string("callcc")}
-    </button>
-    <button onClick={handleClick(/* ~path="http://localhost:8080/lets++-factorial-letrec-5/",
-                                 ~log="execute-332225037.log", */
-                                 /* ~path="http://localhost:8080/lets++-factorial-letrec-short/",
-                                 ~log="execute-1327604975.log", */
-                                 ~path="http://localhost:8080/lets++-factorial-letrec-semishort/",
-                                 ~log="execute-2113856637.log",
-                                 dispatch)}>
-      {React.string("factorial letrec")}
-    </button>
-    <button onClick={handleClick(~path="http://localhost:8080/imp-sum-short/",
-                                 ~log="execute-694863693.log",
-                                 /* ~path="http://localhost:8080/imp-sum/",
-                                 ~log="execute-1666052739.log", */
-                                 dispatch)}>
-      {React.string("imp plus")}
-    </button>
-    <button onClick={handleClick(~path="http://localhost:8080/curried-add-2/",
-                                 ~log="execute-50597497.log",
-                                 /* ~path="http://localhost:8080/curried-add/",
-                                 ~log="execute-776883472.log", */
-                                 dispatch)}>
-      {React.string("curried add")}
-    </button>
-    <button onClick={handleClick(~path="http://localhost:8080/types-plus-5/",
-                                 ~log="execute-172182753.log",
-                                 /* ~print=Json, */
-                                 dispatch)}>
-      {React.string("types plus")}
-    </button>
-    /* TODO: this is returning some weird results. Not all type variables are distinct. Perhaps need to be tracking a different type of state. */
-    <button onClick={handleClick(~path="http://localhost:8080/types-composition/",
-                                 ~log="execute-1458594712.log",
-                                 /* ~print=Json, */
-                                 dispatch)}>
-      {React.string("types composition")}
-    </button>
-    <button onClick={handleClick(~path="http://localhost:8080/fun-factorial/",
-                                 ~log="execute-1500377579.log",
-                                 /* ~print=Json, */
-                                 dispatch)}>
-      {React.string("fun factorial")}
-    </button>
-    /* TODO: breaks b/c freezer assumptions are violated */
-    /* <button onClick={handleClick(~path="http://localhost:8080/types-if/",
-                                 ~log="execute-587178947.log",
-                                 ~print=Json,
-                                 dispatch)}>
-      {React.string("types if")}
-    </button> */
+    {[
+      /* {path: "http://localhost:8080/rewrite-shorter/", log: "execute-1244751780.log", name: "arith-rw"},
+      {path: "http://localhost:8080/lets++-callcc-env1-5/", log: "execute-1800280225.log", name: "callcc"},
+      {path: "http://localhost:8080/lets++-factorial-letrec-semishort/", log: "execute-2113856637.log", name: "factorial letrec"},
+      {path: "http://localhost:8080/imp-sum-short/", log: "execute-694863693.log", name: "imp plus"},
+      {path: "http://localhost:8080/curried-add-2/", log: "execute-50597497.log", name: "curried add"},
+      {path: "http://localhost:8080/types-plus-5/", log: "execute-172182753.log", name: "types plus"},
+      /* TODO: this is returning some weird results. Not all type variables are distinct. Perhaps need to be tracking a different type of state. */
+      {path: "http://localhost:8080/types-composition/", log: "execute-1458594712.log", name: "types composition"},
+      {path: "http://localhost:8080/fun-factorial/", log: "execute-1500377579.log", name: "fun factorial"}, */
+      {path: "http://localhost:8080/mini-sml-1-1/", log: "execute-717857762.log", name: "mini-sml-1-1"},
+      /* TODO: breaks b/c freezer assumptions are violated */
+      /* {path: "http://localhost:8080/types-if/", log: "execute-587178947.log", name: "types if"}, */
+
+    ] |> List.map(({path, log, name}) =>
+        <button onClick={handleClick(~path, ~log, dispatch)}>
+          {React.string(name)}
+        </button>) |> rlist}
     {
       let renderConfig = (my_option) =>
         switch (my_option) {
@@ -664,20 +626,28 @@ let make = () => {
       switch (state.trace) {
       | None => <> </>
       | Some(s) =>
-        <div>
-          <div style=(ReactDOMRe.Style.make(~float="left", ~minWidth="200px", ()))>
+        /* https://www.joomlashack.com/blog/tutorials/center-and-align-items-in-css-grid/ */
+        let boxSize = 350;
+        <div style=(ReactDOMRe.Style.make(~display="grid", ~gridTemplateColumns="fit-content(350px) 20px fit-content(350px) 20px fit-content(350px)", ~alignItems="center", ()))>
+          <div style=(ReactDOMRe.Style.make(~float="left", ~maxWidth=(string_of_int(boxSize) ++ "px"), ()))>
             /* {s->Belt.List.get(state.currentConfig - 1)->renderConfig} */
             {s->Belt.List.get(state.currentConfig)->renderConfig}
             /* {s->Belt.List.get(state.currentConfig + 1)->renderConfig} */
           </div>
-          <div style=(ReactDOMRe.Style.make(~float="left", ~minWidth="200px", ()))>
+          <div style=(ReactDOMRe.Style.make(~float="left", ~textAlign="center", ()))>
+            <b> {React.string("->")} </b>
+          </div>
+          <div style=(ReactDOMRe.Style.make(~float="left", ~maxWidth=(string_of_int(boxSize) ++ "px"), ()))>
             <ReactVisualDiff
               left={s->Belt.List.get(state.currentConfig)->renderConfig}
               right={s->Belt.List.get(state.currentConfig + 1)->renderConfig}
               diffProps={[|"children", "type", "className", "style"|]}
             />
           </div>
-          <div style=(ReactDOMRe.Style.make(~float="left", ~minWidth="200px", ()))>
+          <div style=(ReactDOMRe.Style.make(~float="left", ~textAlign="center", ()))>
+            <b> {React.string("->")} </b>
+          </div>
+          <div style=(ReactDOMRe.Style.make(~float="left", ~maxWidth=(string_of_int(boxSize) ++ "px"), ()))>
           {s->Belt.List.get(state.currentConfig + 1)->renderConfig}
           </div>
         </div>
