@@ -6,3 +6,6 @@ ReactDOMRe.renderToElementWithId(<Component2 greeting="Hello!" />, "index2"); */
 /* ReactDOMRe.renderToElementWithId(<ParseKAST3 />, "index2"); */
 /* ReactDOMRe.renderToElementWithId(<ParseKAST4 />, "index3"); */
 ReactDOMRe.renderToElementWithId(<ParseKAST5 />, "index4");
+
+open SMLLec1;
+Js.Console.log(interpret(ex0));
