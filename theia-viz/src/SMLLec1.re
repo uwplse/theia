@@ -1,3 +1,12 @@
+/* TODO:
+    - push ex0 through whole pipeline
+    - implement plus
+    - implement val binding
+        - entirely in rewrite section, no nesting
+        - with a program counter in a program section that controls flow and sends subexpressions to the rewrite area
+        - with nested lets creating a sequence of frames
+ */
+
 /* TODO: leave program section out/unused for now. It only complicates things. */
 /* sml AST */
 /* Building up a very wrong, very simplistic SML interpreter. Grammar is not correct. */
@@ -39,16 +48,56 @@ type rewrite = { astOrValue, ctxs: list(smlEvalCtx) };
 type frame = { stack, rewrite }
 type configuration = list(frame);
 
-let eval = (c) =>
+let step = (c) =>
   switch (c) {
     /* rewrite */
     | [{ stack, rewrite: {astOrValue: AST(Int(n)), ctxs: []} }] =>
-      [{ stack, rewrite: {astOrValue: Value(VInt(n)), ctxs: []} }]
-    | _ => raise(failwith("unimplemented case"))
+      Some([{ stack, rewrite: {astOrValue: Value(VInt(n)), ctxs: []} }])
+    | _ => None
   };
 
 let inject = (e) => {
   [{ stack: [], rewrite: { astOrValue: AST(e), ctxs: []} }]
 };
 
-let interpret = p => p |> inject |> eval;
+/* 
+-- https://stackoverflow.com/a/22472610
+takeWhileInclusive :: (a -> Bool) -> [a] -> [a]
+takeWhileInclusive _ [] = []
+takeWhileInclusive p (x:xs) = x : if p x then takeWhileInclusive p xs
+                                         else []
+ */
+
+/* https://stackoverflow.com/a/22472610 */
+let rec takeWhileInclusive = (p, l) =>
+  switch (l) {
+    | [] => []
+    | [x, ...xs] => [x, ...(if (p(x)) { takeWhileInclusive(p, xs) }
+                                 else { [] })]
+  };
+
+let rec iterateMaybeAux = (f, x) =>
+  switch (x) {
+    | None => []
+    | Some(x) =>
+        let fx = f(x);
+        [x, ...iterateMaybeAux(f, fx)]
+    };
+
+let iterateMaybe = (f, x) => iterateMaybeAux(f, Some(x));
+
+let isNone = (o) =>
+  switch (o) {
+    | None => true
+    | _ => false
+  };
+
+let isFinal = (c) =>
+  switch (c) {
+    | [] => true
+    | [{ rewrite: {astOrValue: Value(_), ctxs: []} }] => true
+    | _ => false
+  };
+
+/* This is more robust in a lazy language! */
+let interpretTrace = (p) => takeWhileInclusive((c) => !isFinal(c), iterateMaybe(step, inject(p)));
