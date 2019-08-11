@@ -1,6 +1,5 @@
 /* TODO:
-    - push ex0 through whole pipeline
-    - implement plus
+    - implement variable lookup
     - implement val binding
         - entirely in rewrite section, no nesting
         - with a program counter in a program section that controls flow and sends subexpressions to the rewrite area
@@ -8,18 +7,21 @@
  */
 
 /* TODO: leave program section out/unused for now. It only complicates things. */
-/* sml AST */
 /* Building up a very wrong, very simplistic SML interpreter. Grammar is not correct. */
-type smlAST =
-  | Int(int)
-  | Plus(smlAST, smlAST)
-  | Var(string)
-  | ValList(list((string, smlAST)));
 
 type smlValue =
   | VInt(int);
 
-type hole = ();
+type smlAST =
+  | Int(int)
+  | Plus(smlAST, smlAST)
+  | Var(string)
+  | ValList(list((string, smlAST)))
+  /* needed for evaluation. shouldn't be produced by parser.
+     allows us to write intermediate terms where subexpressions are already values. */
+  | Value(smlValue);
+
+type hole = unit;
 
 type smlEvalCtx =
   | ECPlusL(hole, smlAST)
@@ -27,6 +29,9 @@ type smlEvalCtx =
   | ECValList((string, hole), list((string, smlAST)));
 
 let ex0 = Int(5);
+let ex1 = Plus(Int(5), Int(5));
+let ex2 = Plus(Int(1), Plus(Int(2), Int(3)));
+let ex3 = Plus(Plus(Int(2), Int(3)), Int(1));
 
 /* A prefix of "My first ML program" from lecture 1. */
 let exLec1 = ValList([("x", Int(34)),
@@ -41,32 +46,40 @@ sort of a heap */
 /* TODO: show rewrite history or not? */
 /* TODO: pretty print configuration so it can be logged well. */
 type stack = list((string, smlValue));
-type astOrValue =
-  | AST(smlAST)
-  | Value(smlValue);
-type rewrite = { astOrValue, ctxs: list(smlEvalCtx) };
+type rewrite = { smlAST, ctxs: list(smlEvalCtx) };
 type frame = { stack, rewrite }
 type configuration = list(frame);
 
 let step = (c) =>
   switch (c) {
-    /* rewrite */
-    | [{ stack, rewrite: {astOrValue: AST(Int(n)), ctxs: []} }] =>
-      Some([{ stack, rewrite: {astOrValue: Value(VInt(n)), ctxs: []} }])
+    /* int */
+    |      [{ stack, rewrite: {smlAST: Int(n), ctxs} }] =>
+      Some([{ stack, rewrite: {smlAST: Value(VInt(n)), ctxs} }])
+
+    /* + */
+    /* written in reverse b/c some patterns fight with each other for precedence, but not in this order. */
+    /*- 5e. Evaluate +. */
+    |      [{stack, rewrite: {smlAST: Plus(Value(VInt(v1)), Value(VInt(v2))), ctxs}}] =>
+      Some([{stack, rewrite: {smlAST: Value(VInt(v1 + v2)), ctxs}}])
+    /*- 4t. Focus on + after evaluating RHS. */
+    |      [{stack, rewrite: {smlAST: Value(v2), ctxs: [ECPlusR(v1, ()), ...ctxs']}}] =>
+      Some([{stack, rewrite: {smlAST: Plus(Value(v1), Value(v2)), ctxs: ctxs'}}])
+    /*- 3t. Focus on RHS. */
+    |      [{stack, rewrite: {smlAST: Plus(Value(v1), e2), ctxs}}] =>
+      Some([{stack, rewrite: {smlAST: e2, ctxs: [ECPlusR(v1, ()), ...ctxs]}}])
+    /*- 2t. Focus on + after evaluating LHS. */
+    |      [{stack, rewrite: {smlAST: Value(v1), ctxs: [ECPlusL((), e2), ...ctxs']}}] =>
+      Some([{stack, rewrite: {smlAST: Plus(Value(v1), e2), ctxs: ctxs'}}])
+    /*- 1t. Focus on LHS. */
+    |      [{stack, rewrite: {smlAST: Plus(e1, e2), ctxs}}] =>
+      Some([{stack, rewrite: {smlAST: e1, ctxs: [ECPlusL((), e2), ...ctxs]}}])
+
     | _ => None
   };
 
 let inject = (e) => {
-  [{ stack: [], rewrite: { astOrValue: AST(e), ctxs: []} }]
+  [{ stack: [], rewrite: { smlAST: e, ctxs: []} }]
 };
-
-/* 
--- https://stackoverflow.com/a/22472610
-takeWhileInclusive :: (a -> Bool) -> [a] -> [a]
-takeWhileInclusive _ [] = []
-takeWhileInclusive p (x:xs) = x : if p x then takeWhileInclusive p xs
-                                         else []
- */
 
 /* https://stackoverflow.com/a/22472610 */
 let rec takeWhileInclusive = (p, l) =>
@@ -95,9 +108,14 @@ let isNone = (o) =>
 let isFinal = (c) =>
   switch (c) {
     | [] => true
-    | [{ rewrite: {astOrValue: Value(_), ctxs: []} }] => true
+    | [{ rewrite: {smlAST: Value(_), ctxs: []} }] => true
     | _ => false
   };
 
 /* This is more robust in a lazy language! */
 let interpretTrace = (p) => takeWhileInclusive((c) => !isFinal(c), iterateMaybe(step, inject(p)));
+
+let extract = (c) =>
+  switch (c) {
+    | [{rewrite: {smlAST: Value(VInt(n))}}] => string_of_int(n)
+  };
