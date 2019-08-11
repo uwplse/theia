@@ -231,7 +231,15 @@ let rec kn2Pretty = (~parens=true, k) =>
         <td style=(ReactDOMRe.Style.make(~border="1px solid black", ()))> {kn2Pretty(k)} </td>
         <td style=(ReactDOMRe.Style.make(~border="1px solid black", ()))> {kn2Pretty(v)} </td>
       </>
-    /* TODO: special case for simple values (those with a single field and no label.) */
+  /* Simple values don't get big borders. */
+  | Value2([], [arg]) =>
+    <table style=(ReactDOMRe.Style.make(~display="inline-table", ()))>
+        <tbody>
+          <tr>
+            <td style=(ReactDOMRe.Style.make(~border="1px solid gray", ()))> {kn2Pretty(~parens=false, arg)} </td>
+          </tr>
+        </tbody>
+      </table>
   | Value2(ops, args) =>
     <fieldset style=(ReactDOMRe.Style.make(~display="inline", ()))>
       <legend> {Util.interleave(ops, (1--(List.length(ops) - 1)) |> List.map(_ => "•")) |> List.fold_left((++), "") |> React.string} </legend>
