@@ -1,12 +1,12 @@
 /* TODO:
-    - implement variable lookup
     - implement val binding
         - entirely in rewrite section, no nesting
         - with a program counter in a program section that controls flow and sends subexpressions to the rewrite area
+          (add the program section back!)
         - with nested lets creating a sequence of frames
+    - implement low-level variable lookup. will also give some indication of how to skip steps intelligently
  */
-
-/* TODO: leave program section out/unused for now. It only complicates things. */
+/* TODO: figure out how to do monads in reason/ocaml. there's some ppx stuff. */
 /* Building up a very wrong, very simplistic SML interpreter. Grammar is not correct. */
 
 type smlValue =
@@ -32,6 +32,8 @@ let ex0 = Int(5);
 let ex1 = Plus(Int(5), Int(5));
 let ex2 = Plus(Int(1), Plus(Int(2), Int(3)));
 let ex3 = Plus(Plus(Int(2), Int(3)), Int(1));
+let ex4 = Plus(Var("x"), Int(2));
+let ex5 = Plus(Var("x"), Var("y"));
 
 /* A prefix of "My first ML program" from lecture 1. */
 let exLec1 = ValList([("x", Int(34)),
@@ -49,6 +51,12 @@ type stack = list((string, smlValue));
 type rewrite = { smlAST, ctxs: list(smlEvalCtx) };
 type frame = { stack, rewrite }
 type configuration = list(frame);
+
+let rec lookup = (key, stack) =>
+  switch (stack) {
+    | [] => None
+    | [(k, v), ...stack] => if (k == key) { Some(v) } else { lookup(key, stack) }
+  };
 
 let step = (c) =>
   switch (c) {
@@ -74,11 +82,19 @@ let step = (c) =>
     |      [{stack, rewrite: {smlAST: Plus(e1, e2), ctxs}}] =>
       Some([{stack, rewrite: {smlAST: e1, ctxs: [ECPlusL((), e2), ...ctxs]}}])
 
+    /* var lookup */
+    /* TODO: this should be in the option monad */
+    |      [{stack, rewrite: {smlAST: Var(x) , ctxs}}] =>
+      switch (lookup(x, stack)) {
+        | None => None
+        | Some(value) => Some([{stack, rewrite: {smlAST: Value(value), ctxs}}])
+      }
+
     | _ => None
   };
 
 let inject = (e) => {
-  [{ stack: [], rewrite: { smlAST: e, ctxs: []} }]
+  [{ stack: [("x", VInt(27)), ("y", VInt(300)), ("x", VInt(16))], rewrite: { smlAST: e, ctxs: []} }]
 };
 
 /* https://stackoverflow.com/a/22472610 */

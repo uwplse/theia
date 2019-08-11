@@ -15,6 +15,7 @@ let rec compileSMLAST = (ast) =>
   switch (ast) {
     | Int(n) => Atom(string_of_int(n))
     | Plus(e1, e2) => Apply2(["", "+", ""], List.map(compileSMLAST, [e1, e2]))
+    | Var(x) => Atom(x)
     | Value(v) => compileSMLValue(v)
     | _ => raise(failwith("unimplemented SML AST compile to TheiaIR"))
   };
@@ -29,7 +30,7 @@ let compileSMLEvalCtx = (ec) =>
 
 /* turn into a Map2 of KV2's. */
 let compileKVs = ((k, v)) => KV2((Atom(k), compileSMLValue(v)))
-let compileStack = (s) => Map2(List.map(compileKVs, s));
+let compileStack = (s) => Map2(List.map(compileKVs, s) |> List.rev);
 
 let compileRewrite = ({smlAST, ctxs}) => Kont2(compileSMLAST(smlAST), List.map(compileSMLEvalCtx, ctxs));
 
