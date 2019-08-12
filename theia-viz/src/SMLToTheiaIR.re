@@ -17,6 +17,8 @@ let rec compileSMLAST = (ast) =>
     | Plus(e1, e2) => Apply2(["", "+", ""], List.map(compileSMLAST, [e1, e2]))
     | Var(x) => Atom(x)
     | Value(v) => compileSMLValue(v)
+    /* TODO: do for arbitrary lists */
+    | ValList([(x, e)]) => Apply2(["val", "=", ";"], [Atom(x), compileSMLAST(e)])
     | _ => raise(failwith("unimplemented SML AST compile to TheiaIR"))
   };
 
@@ -25,6 +27,8 @@ let compileSMLEvalCtx = (ec) =>
   switch (ec) {
     | ECPlusL((), e2) => {ops: ["", "+", ""], args: [compileSMLAST(e2)], holePos: 0}
     | ECPlusR(v1, ()) => {ops: ["", "+", ""], args: [compileSMLValue(v1)], holePos: 1}
+    /* TODO: do for arbitrary lists */
+    | ECValList((x, ()), []) => {ops: ["val", "=", ";"], args: [Atom(x)], holePos: 1}
     | _ => raise(failwith("todo"))
   };
 

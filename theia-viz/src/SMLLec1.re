@@ -1,6 +1,7 @@
 /* TODO:
     - implement val binding
         - entirely in rewrite section, no nesting
+          TODO: test this and make it render!!
         - with a program counter in a program section that controls flow and sends subexpressions to the rewrite area
           (add the program section back!)
         - with nested lets creating a sequence of frames
@@ -34,6 +35,7 @@ let ex2 = Plus(Int(1), Plus(Int(2), Int(3)));
 let ex3 = Plus(Plus(Int(2), Int(3)), Int(1));
 let ex4 = Plus(Var("x"), Int(2));
 let ex5 = Plus(Var("x"), Var("y"));
+let ex6 = ValList([("x", Int(34))]);
 
 /* A prefix of "My first ML program" from lecture 1. */
 let exLec1 = ValList([("x", Int(34)),
@@ -58,6 +60,7 @@ let rec lookup = (key, stack) =>
     | [(k, v), ...stack] => if (k == key) { Some(v) } else { lookup(key, stack) }
   };
 
+/* really each rule should probably just move a *single* thing! */
 let step = (c) =>
   switch (c) {
     /* int */
@@ -82,6 +85,19 @@ let step = (c) =>
     |      [{stack, rewrite: {smlAST: Plus(e1, e2), ctxs}}] =>
       Some([{stack, rewrite: {smlAST: e1, ctxs: [ECPlusL((), e2), ...ctxs]}}])
 
+    /* val list */
+    /*- 1t. Focus on first binding  */
+    |      [{stack, rewrite: {smlAST: ValList([(x, e), ...bindings]), ctxs}}] =>
+      Some([{stack, rewrite: {smlAST: e, ctxs: [ECValList((x, ()), bindings), ...ctxs]}}])
+    /*- 2e. Push binding onto stack and focus on next binding. */
+    /* TODO: should be two rules? or at least two steps? */
+    |      [{stack, rewrite: {smlAST: Value(v1), ctxs: [ECValList((x1, ()), [(x2, e2), ...bindings]), ...ctxs']}}] =>
+      Some([{stack: [(x1, v1), ...stack], rewrite: {smlAST: e2, ctxs: [ECValList((x2, ()), bindings), ...ctxs']}}])
+    /*- 3e. Push last binding onto stack. */
+    /* TODO: what to return??? */
+    |      [{stack, rewrite: {smlAST: Value(v), ctxs: [ECValList((x, ()), []), ...ctxs']}}] =>
+      Some([{stack: [(x, v), ...stack], rewrite: {smlAST: Value(VInt(-1)), ctxs: ctxs'}}])
+
     /* var lookup */
     /* TODO: this should be in the option monad */
     |      [{stack, rewrite: {smlAST: Var(x) , ctxs}}] =>
@@ -94,7 +110,7 @@ let step = (c) =>
   };
 
 let inject = (e) => {
-  [{ stack: [("x", VInt(27)), ("y", VInt(300)), ("x", VInt(16))], rewrite: { smlAST: e, ctxs: []} }]
+  [{ stack: [/* ("x", VInt(27)), ("y", VInt(300)), ("x", VInt(16)) */], rewrite: { smlAST: e, ctxs: []} }]
 };
 
 /* https://stackoverflow.com/a/22472610 */
