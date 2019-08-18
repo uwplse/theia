@@ -1,7 +1,6 @@
 /* Theia with SML shim. */
 
 /* TODO:
-    - get smallest example to work
     - refactor into multiple files
     - use JSON trace intermediate format
 */
@@ -197,25 +196,25 @@ let render_close_brack = <span style=(ReactDOMRe.Style.make(~color="blue", ()))>
 let rec kn2Pretty = (~parens=true, k) =>
   switch (k) {
   | Atom(s) => <> {React.string(s)} </>
-  | Apply2(ops, args) => Util.interleave(List.map(React.string, ops), List.map(kn2Pretty, args)) |> Util.prettierList(~parens)
+  | Apply2(ops, args) => Util.interleave(List.map(React.string, ops), List.map(kn2Pretty, args)) |> Util.prettierList(~parens, ~space=false)
   | EvalCtx(_) => raise(CompileError("There shouldn't be a EvalCtx!"))
   /* | Sequence2(l) => <> {Util.interleave(List.map(kn2Pretty, l), (1--(List.length(l) - 1)) |> List.map(_ => React.string(" ~> "))) |> Util.prettierList} </> */
   | Sequence2([kn]) => <> {kn2Pretty(~parens=false, kn)} </>
-  | Sequence2(l) => <> {List.mapi((i, kn) => <div key={string_of_int(i)} style=(ReactDOMRe.Style.make(~marginTop="10px", ()))> {kn2Pretty(~parens=false, kn)} </div>, l) |> List.rev |> Array.of_list |> React.array} </>
+  | Sequence2(l) => <> {List.mapi((i, kn) => <div key={string_of_int(i)} style=(ReactDOMRe.Style.make(~marginTop="10px", ()))> {kn2Pretty(~parens=false, kn)} </div>, l) /* |> List.rev */ |> Array.of_list |> React.array} </>
   /* | Sequence2(l) => <> {kn2PrettyList(l)} </> */ /* TODO: almost right except for subexpressions that contain sequences like in callcc.
     I think it's better to just have a list of environments than a store them in the k node. This is a semantics problem.
     There are two ways to affect the visualization: change how individual elements are rendered or change the semantics. */
-  | Map2([]) => 
-      <table style=(ReactDOMRe.Style.make(~borderCollapse="collapse", ~display="inline-table", ()))>
-        <tbody>  
-          <tr>
-            <td style=(ReactDOMRe.Style.make(~border="1px solid black", ()))> {React.string("/")} </td>
-          </tr>
-        </tbody>
-      </table>
-  | Map2(l) =>
-      <table style=(ReactDOMRe.Style.make(~borderCollapse="collapse", ~display="inline-table", ()))>
-        /* TODO: thead? */
+    /* TODO: wouldn't like to render anything in the body, but would still like the space there.
+        Need to replace strings in Atoms with React elements. */
+  | Map2([]) => kn2Pretty(Map2([KV2((Atom("_"), Atom("_")))]))
+  | Map2(l) => /* https://stackoverflow.com/a/3349181 */
+      <table style=(ReactDOMRe.Style.make(~borderCollapse="collapse", ~borderStyle="hidden", ~display="inline-table", ()))>
+        <thead>
+            <tr>
+                <th style=(ReactDOMRe.Style.make(~border="1px solid black", ~paddingRight="5px", ~textAlign="right", ()))> {React.string("Id")} </th>
+                <th style=(ReactDOMRe.Style.make(~border="1px solid black", ~paddingLeft="5px", ~textAlign="left", ()))> {React.string("Val")} </th>
+            </tr>
+        </thead>
         <tbody>
           {
             l|>List.mapi((i, kv) => 
@@ -228,8 +227,8 @@ let rec kn2Pretty = (~parens=true, k) =>
   | Kont2(kn, fs) => prettyKont2List(~parens=false, kn, List.rev(fs))
   | KV2((k, v)) =>
       <>
-        <td style=(ReactDOMRe.Style.make(~border="1px solid black", ()))> {kn2Pretty(k)} </td>
-        <td style=(ReactDOMRe.Style.make(~border="1px solid black", ()))> {kn2Pretty(v)} </td>
+        <td style=(ReactDOMRe.Style.make(~borderRight="1px solid black", ~paddingRight="5px", ~paddingTop="5px", ~textAlign="right", ()))> {kn2Pretty(k)} </td>
+        <td style=(ReactDOMRe.Style.make(~borderLeft="1px solid black", ~paddingLeft="5px", ~paddingTop="5px", ~textAlign="left", ()))> {kn2Pretty(v)} </td>
       </>
   /* Simple values don't get big borders. */
   | Value2([], [arg]) =>
@@ -263,7 +262,7 @@ let rec kn2Pretty = (~parens=true, k) =>
 /* bracket style */
 and prettyFreeze = (~nestNum=0, {ops, args, holePos}, arg) => {
   let newArgs = Util.insert(<> render_open_brack arg render_close_brack </>, List.map(kn2Pretty, args), holePos);
-  Util.interleave(List.map(React.string, ops), newArgs) |> Util.prettierList(~parens=false)
+  Util.interleave(List.map(React.string, ops), newArgs) |> Util.prettierList(~parens=false, ~space=false)
 }
 /* underline style */
 /* and prettyFreeze = (~nestNum=0, {ops, args, holePos}, arg) => {

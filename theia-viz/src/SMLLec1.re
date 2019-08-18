@@ -1,7 +1,7 @@
 /* TODO:
     - implement val binding
         - entirely in rewrite section, no nesting
-          TODO: test this and make it render!!
+          - TODO: add x with no binding to environment first. then evaluate RHS. then pop back up. then add value to env
         - with a program counter in a program section that controls flow and sends subexpressions to the rewrite area
           (add the program section back!)
         - with nested lets creating a sequence of frames
@@ -50,6 +50,7 @@ sort of a heap */
 /* TODO: show rewrite history or not? */
 /* TODO: pretty print configuration so it can be logged well. */
 type stack = list((string, smlValue));
+/* might want smlAST to actually be an optional to support val bindings that don't end in an expression */
 type rewrite = { smlAST, ctxs: list(smlEvalCtx) };
 type frame = { stack, rewrite }
 type configuration = list(frame);

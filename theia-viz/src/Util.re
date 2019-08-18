@@ -17,13 +17,18 @@ let insert = (x, xs, i) => {
   xs @ [x, ...ys]
 };
 
-let prettierList = (~parens=true, ss) => {
+let prettierList = (~parens=true, ~space=true, ss) => {
   let ss = List.filter((s) => s != React.string{""}, ss);
   let rec loop = (ss) =>
     switch (ss) {
     | [] => <> </>
     | [s] => <> s </>
-    | [s, ...ss] => <> s {React.string(" ")} {loop(ss)} </>
+    | [s, ...ss] =>
+        if (space) {
+            <> s {React.string(" ")} {loop(ss)} </>
+        } else {
+            <> s {loop(ss)} </>
+        }
     };
   if (parens) {
     <> {React.string("(")} {loop(ss)} {React.string(")")} </>
