@@ -77,8 +77,8 @@ let split = (l, x) =>
   };
 
 type theiaIR =
-  | Atom(string)
-  | Apply2(list(string), list(theiaIR))
+  | Atom(ReasonReact.reactElement)
+  | Apply2(list(ReasonReact.reactElement), list(theiaIR))
   | EvalCtx(evalCtx)
   | Sequence2(list(theiaIR))
   | Map2(list(theiaIR))
@@ -86,12 +86,12 @@ type theiaIR =
   | KV2((theiaIR, theiaIR))
   | Value2(list(string), list(theiaIR))
   | Cell2(string, list(theiaIR))
-and evalCtx = {ops: list(string), args: list(theiaIR), holePos: int};
+and evalCtx = {ops: list(ReasonReact.reactElement), args: list(theiaIR), holePos: int};
 
 let rec theiaIRDebugPrint = (k) =>
   switch (k) {
-  | Atom(s) => "Atom(" ++ s ++ ")"
-  | Apply2(ss, args) => "Apply2(" ++ prettyList(List.map((s) => "\"" ++ s ++ "\"", ss)) ++ ", " ++ prettyList(List.map(theiaIRDebugPrint, args)) ++ ")"
+  | Atom(s) => "Atom(" ++ /* s ++ */ ")"
+  | Apply2(ss, args) => "Apply2(" /* ++ prettyList(List.map((s) => "\"" ++ s ++ "\"", ss)) */ ++ ", " ++ prettyList(List.map(theiaIRDebugPrint, args)) ++ ")"
   | Value2(ss, args) => "Value2(" ++ prettyList(List.map((s) => "\"" ++ s ++ "\"", ss)) ++ ", " ++ prettyList(List.map(theiaIRDebugPrint, args)) ++ ")"
   | EvalCtx(f) => "EvalCtx(" ++ debugFreezer(f) ++ ")"
   | Sequence2(l) => "Sequence2(" ++ (List.map(theiaIRDebugPrint, l) |> prettyList) ++ ")"
@@ -102,7 +102,7 @@ let rec theiaIRDebugPrint = (k) =>
   }
 and debugEntry2 = ((k, v)) => theiaIRDebugPrint(k) ++ "->" ++ theiaIRDebugPrint(v)
 and debugFreezer = ({ops, args, holePos}) => {
-  "evalctx(" ++ prettyList(List.map((s) => "\"" ++ s ++ "\"", ops)) ++ ", " ++ prettyList(List.map(theiaIRDebugPrint, args)) ++ ", " ++ string_of_int(holePos) ++ ")"
+  "evalctx(" ++ /* prettyList(List.map((s) => "\"" ++ s ++ "\"", ops)) ++ */ ", " ++ prettyList(List.map(theiaIRDebugPrint, args)) ++ ", " ++ string_of_int(holePos) ++ ")"
 };
 
 let rec theiaIRDebugPrintShort = (k) =>
@@ -195,8 +195,8 @@ let render_close_brack = <span style=(ReactDOMRe.Style.make(~color="blue", ()))>
 
 let rec kn2Pretty = (~parens=true, k) =>
   switch (k) {
-  | Atom(s) => <> {React.string(s)} </>
-  | Apply2(ops, args) => Util.interleave(List.map(React.string, ops), List.map(kn2Pretty, args)) |> Util.prettierList(~parens, ~space=false)
+  | Atom(s) => s
+  | Apply2(ops, args) => Util.interleave(ops, List.map(kn2Pretty, args)) |> Util.prettierList(~parens, ~space=false)
   | EvalCtx(_) => raise(CompileError("There shouldn't be a EvalCtx!"))
   /* | Sequence2(l) => <> {Util.interleave(List.map(kn2Pretty, l), (1--(List.length(l) - 1)) |> List.map(_ => React.string(" ~> "))) |> Util.prettierList} </> */
   | Sequence2([kn]) => <> {kn2Pretty(~parens=false, kn)} </>
@@ -204,9 +204,7 @@ let rec kn2Pretty = (~parens=true, k) =>
   /* | Sequence2(l) => <> {kn2PrettyList(l)} </> */ /* TODO: almost right except for subexpressions that contain sequences like in callcc.
     I think it's better to just have a list of environments than a store them in the k node. This is a semantics problem.
     There are two ways to affect the visualization: change how individual elements are rendered or change the semantics. */
-    /* TODO: wouldn't like to render anything in the body, but would still like the space there.
-        Need to replace strings in Atoms with React elements. */
-  | Map2([]) => kn2Pretty(Map2([KV2((Atom("_"), Atom("_")))]))
+  | Map2([]) => kn2Pretty(Map2([KV2((Atom(Util.nbsp), Atom(Util.nbsp)))]))
   | Map2(l) => /* https://stackoverflow.com/a/3349181 */
       <table style=(ReactDOMRe.Style.make(~borderCollapse="collapse", ~borderStyle="hidden", ~display="inline-table", ()))>
         <thead>
@@ -262,7 +260,7 @@ let rec kn2Pretty = (~parens=true, k) =>
 /* bracket style */
 and prettyFreeze = (~nestNum=0, {ops, args, holePos}, arg) => {
   let newArgs = Util.insert(<> render_open_brack arg render_close_brack </>, List.map(kn2Pretty, args), holePos);
-  Util.interleave(List.map(React.string, ops), newArgs) |> Util.prettierList(~parens=false, ~space=false)
+  Util.interleave(ops, newArgs) |> Util.prettierList(~parens=false, ~space=false)
 }
 /* underline style */
 /* and prettyFreeze = (~nestNum=0, {ops, args, holePos}, arg) => {
