@@ -38,8 +38,10 @@ let compileSMLEvalCtx = (ec) =>
 let compileKVs = ((k, v)) => KV2((Atom(k), compileSMLValue(v)))
 let compileStack = (s) => Map2(List.map(compileKVs, s) |> List.rev);
 
-let compileRewrite = ({smlAST, ctxs}) => Kont2(compileSMLAST(smlAST), List.map(compileSMLEvalCtx, ctxs));
+let compileRewrite = ({smlAST, ctxs}: rewrite) => Kont2(compileSMLAST(smlAST), List.map(compileSMLEvalCtx, ctxs));
 
 let compileFrame = ({stack, rewrite}) => Sequence2([compileStack(stack), compileRewrite(rewrite)]);
 
-let smlToTheiaIR = (c) => Cell2("frames", List.map(compileFrame, c));
+let compileProgram = ({smlAST, ctxs}: program) => Kont2(compileSMLAST(smlAST), List.map(compileSMLEvalCtx, ctxs));
+
+let smlToTheiaIR = ({program, frames}) => Sequence2([Cell2("program", [compileProgram(program)]), Cell2("frames", List.map(compileFrame, frames))]);
