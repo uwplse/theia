@@ -1,8 +1,6 @@
 /* TODO:
-    - implement nested evaluation contexts for val list
-    - fix all the printing bugs with val list and evaluation contexts
     - use highlighting for the evaluation contexts (is this saved in my other local version?)
-    - remove parens
+    - remove parens around val bindings
 
     - implement val binding
         - entirely in rewrite section, no nesting
@@ -42,10 +40,8 @@ type smlEvalCtx =
     separate from the equality inside that binding */
   | ECValBindVar(hole, expr)
   | ECValBindExpr(string, hole)
-  | ECValList2(list(valBind), hole, list(valBind)) /* stores VBs before and after */
-  | ECValList(list(valBind), int) /* TODO: deprecate */
-  | ECValListVar(list(valBind), int) /* TODO: deprecate */
-  | ECValListExpr(list(valBind), int); /* TODO: deprecate */
+  | ECValListEnter(list(valBind), hole, list(valBind)) /* stores VBs before and after */
+  | ECValListExit(list(valBind), hole, list(valBind)) /* stores VBs before and after */;
 
 type grammar =
   | Expr(expr)
@@ -137,66 +133,6 @@ let step = (c: configuration): option(configuration) =>
     | _ => None
   }; */
 
-/* 
-let step = (c: configuration): option(configuration) =>
-  switch (c) {
-    /* rewrite int */
-    |      {program, frames: [{ stack, rewrite: Some({focus: Int(n), ctxs}) }]} =>
-      Some({program, frames: [{ stack, rewrite: Some({focus: Value(VInt(n)), ctxs}) }]})
-
-    /* val list */
-    /* TODO: rules reversed so matching works properly? */
-    /* TODO: generalize the rules so they can use arbitrarily long val lists */
-    /*- 1t. Focus on first binding  */
-    |      {program: {focus: ValList([ValBind(x, e), ...bindings]), ctxs}, frames: []} =>
-      Some({program: {focus: ValList([ValBind(x, e)]), ctxs: [ECValList([ValBind(x, e), ...bindings], 0), ...ctxs]}, frames: [{stack: [], rewrite: None}]})
-    /*- 2t. Focus on variable in binding. */
-    |      {program: {focus, ctxs: [ECValList([ValBind(x, e), ...bindings], i), ...ctxs]}, frames: [{stack: [], rewrite: None}]} =>
-      Some({program: {focus: Var(x), ctxs: [ECValListVar([ValBind(x, e), ...bindings], i), ...ctxs]}, frames: [{stack: [], rewrite: None}]})
-    /*- 3e. Push variable onto stack. TODO: what about when there are more bindings? */
-    |      {program: {focus: Var(x), ctxs: [ECValListVar(bindings, i), ...ctxs]}, frames: [{stack: [], rewrite}]} =>
-      Some({program: {focus: Var(x), ctxs: [ECValListVar(bindings, i), ...ctxs]}, frames: [{stack: [(x, None)], rewrite: None}]})
-    /*- 4t. Refocus on binding. */
-    |      {program: {focus: Var(x), ctxs: [ECValListVar(bindings, i), ...ctxs]}, frames: [{stack: [(_, None)], rewrite}]} =>
-      Some({program: {focus: ValList([List.nth(bindings, i)]), ctxs: [ECValList(bindings, i), ...ctxs]}, frames: [{stack: [(x, None)], rewrite}]})
-    /*- 5t. Focus on subexpression. */
-    |      {program: {focus: ValList([ValBind(_, e)]), ctxs: [ECValList(bindings, i), ...ctxs]}, frames: [{stack: [(x, None)], rewrite}]} =>
-      Some({program: {focus: e, ctxs: [ECValListExpr(bindings, i), ...ctxs]}, frames: [{stack: [(x, None)], rewrite}]})
-    /*- 6e. Push the subexpression into rewrite. */
-    |      {program: {focus: e, ctxs: [ECValListExpr(bindings, i), ...ctxs]}, frames: [{stack: [(x, None)], rewrite: None}]} =>
-      Some({program: {focus: e, ctxs: [ECValListExpr(bindings, i), ...ctxs]}, frames: [{stack: [(x, None)], rewrite: Some({focus: e, ctxs: []})}]})
-    /*- 7e. Push value onto stack. */
-    |      {program: {focus: e, ctxs: [ECValListExpr(bindings, i), ...ctxs]}, frames: [{stack: [(x, None)], rewrite: Some({focus: Value(v), ctxs: []})}]} =>
-      Some({program: {focus: e, ctxs: [ECValListExpr(bindings, i), ...ctxs]}, frames: [{stack: [(x, Some(v))], rewrite: None}]})
-    /*- 8t. Refocus on binding. TODO: this is problematic, because indistinguishable from the first one. (Actually, the way I'm defining this, though, I just need to compare i to the stack length I think? Will need a better solution once functions come along. */
-    |      {program: {focus: _e, ctxs: [ECValListExpr(bindings, i), ...ctxs]}, frames: [{stack: [(x, Some(v))], rewrite: None}]} =>
-      Some({program: {focus: ValList([List.nth(bindings, i)]), ctxs: [ECValList(bindings, i), ...ctxs]}, frames: [{stack: [(x, Some(v))], rewrite: None}]})
-    /*- 9t. Focus on the next binding or stop. TODO: see above. */
-    |      {program: {focus: ValList(_), ctxs: [ECValList(bindings, i), ...ctxs]}, frames: [{stack: [(x, Some(v))], rewrite: None}]} =>
-      if (i+1 >= List.length(bindings)) {
-          Some({program: {focus: ValList(bindings), ctxs}, frames: [{stack: [(x, Some(v))], rewrite: None}]})
-      } else {
-          Some({program: {focus: ValList([List.nth(bindings, i+1)]), ctxs: [ECValList(bindings, i+1), ...ctxs]}, frames: [{stack: [(x, Some(v))], rewrite: None}]})
-      }
-    /* |      {program: {focus, ctxs: [ECValListVar([(x, e), ...bindings], 0), ...ctxs]}, frames} =>
-      Some({program: {focus: e, ctxs: [ECValListExpr([(x, e), ...bindings], 0), ...ctxs]}, frames: [{stack: [], rewrite: Some({focus: e, ctxs: []})}]}) */
-      /* Some({program: {focus: e, ctxs: [ECValListExpr([(x, e), ...bindings], 0), ...ctxs]}, frames: [{stack: [], rewrite: Some({focus: e, ctxs: []})}]}) */
-    /*- 2e. Push binding onto stack and... */
-    /* TODO: need to add a new evalctx that preserves the code! */
-    /* |      {program: {focus: _e1, ctxs: [ECValListExpr(bindings, i), ...ctxs]}, frames: [{stack, rewrite: Some({focus: Value(v1), ctxs: []})}]} =>
-      let (x1, _e1) = List.nth(bindings, i);
-      if (i >= List.length(bindings) - 1) {
-        /* ... stop */
-        /* TODO: shouldn't be None. should be some sort of Stop. or maybe just no rule at all? Need to clear rewrite tho */
-        Some({program: {focus: ValList(bindings), ctxs: ctxs}, frames: [{stack: [(x1, v1), ...stack], rewrite: None}]})
-      } else {
-        /* ... focus on next binding */
-        let (_x2, e2) = List.nth(bindings, i+1);
-        Some({program: {focus: e2, ctxs: [ECValListExpr(bindings, i+1), ...ctxs]}, frames: [{stack: [(x1, v1), ...stack], rewrite: Some({focus: e2, ctxs: []})}]})
-      } */
-    | _ => None
-  }; */
-
 let step = (c: configuration): option(configuration) =>
   switch (c) {
       /* rewrite int */
@@ -206,34 +142,37 @@ let step = (c: configuration): option(configuration) =>
     /* TODO: rules reversed so matching works properly? */
     /* TODO: generalize the rules so they can use arbitrarily long val lists and also so they're simpler */
     /* TODO: write rule that ends val binding visiting */
+    /*- 10t. Leave val list.  */
+    |      {program: {focus: VB(ValBind(x1, e1)), ctxs: [ECValListExit(prevB, (), []), ...ctxs]}, frames: [{stack: [(_, Some(v1)), ...stack], rewrite: None}]} =>
+      Some({program: {focus: Expr(ValList(prevB @ [ValBind(x1, e1)])), ctxs}, frames: [{stack: [(x1, Some(v1)), ...stack], rewrite: None}]})
+    /*- 9t. Focus on the next binding. */
+    |      {program: {focus: VB(ValBind(x1, e1)), ctxs: [ECValListExit(prevB, (), [ValBind(x2, e2), ...bindings]), ...ctxs]}, frames: [{stack: [(_, Some(v1)), ...stack], rewrite: None}]} =>
+      Some({program: {focus: VB(ValBind(x2, e2)), ctxs: [ECValListEnter(prevB @ [ValBind(x1, e1)], (), bindings), ...ctxs]}, frames: [{stack: [(x1, Some(v1)), ...stack], rewrite: None}]})
+    /*- 8t. Refocus on val list. Note: Exit is used to prevent match ambiguity. */
+    |      {program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValListEnter(prevB, (), postB), ...ctxs]}, frames: [{stack: [(_, Some(v)), ...stack], rewrite: None}]} =>
+      Some({program: {focus: VB(ValBind(x, e)), ctxs: [ECValListExit(prevB, (), postB), ...ctxs]}, frames: [{stack: [(x, Some(v)), ...stack], rewrite: None}]})
+    /*- 7e. Push value onto stack. */
+    |      {program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValListEnter(prevB, (), postB), ...ctxs]}, frames: [{stack: [(_, None), ...stack], rewrite: Some({focus: Value(v), ctxs: []})}]}
+    =>
+      Some({program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValListEnter(prevB, (), postB), ...ctxs]}, frames: [{stack: [(x, Some(v)), ...stack], rewrite: None}]})
+    /*- 6e. Push the subexpression into rewrite. */
+    |      {program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValListEnter(prevB, (), postB), ...ctxs]}, frames: [{stack: [(_, None), ...stack], rewrite: None}]} =>
+      Some({program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValListEnter(prevB, (), postB), ...ctxs]}, frames: [{stack: [(x, None), ...stack], rewrite: Some({focus: e, ctxs: []})}]})
+    /*- 5t. Focus on subexpression. */
+    |      {program: {focus: VB(ValBind(x, e)), ctxs: [ECValListEnter(prevB, (), postB), ...ctxs]}, frames: [{stack: [(_, None), ...stack], rewrite: None}]} =>
+      Some({program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValListEnter(prevB, (), postB), ...ctxs]}, frames: [{stack: [(x, None), ...stack], rewrite: None}]})
+    /*- 4t. Refocus on val list. */
+    |      {program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ECValListEnter(prevB, (), postB), ...ctxs]}, frames: [{stack: [(_, None), ...stack], rewrite: None}]} =>
+      Some({program: {focus: VB(ValBind(x, e)), ctxs: [ECValListEnter(prevB, (), postB), ...ctxs]}, frames: [{stack: [(x, None), ...stack], rewrite: None}]})
+    /*- 3e. Push variable onto stack. */
+    |      {program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ...ctxs]}, frames: [{stack, rewrite: None}]} =>
+      Some({program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ...ctxs]}, frames: [{stack: [(x, None), ...stack], rewrite: None}]})
+    /*- 2t. Focus on variable. */
+    |      {program: {focus: VB(ValBind(x, e)), ctxs: [ECValListEnter(prevB, (), postB), ...ctxs]}, frames: [{stack, rewrite: None}]} =>
+      Some({program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ECValListEnter(prevB, (), postB), ...ctxs]}, frames: [{stack, rewrite: None}]})
     /*- 1t. Focus on first binding  */
     |      {program: {focus: Expr(ValList([ValBind(x, e), ...bindings])), ctxs}, frames: []} =>
-      Some({program: {focus: VB(ValBind(x, e)), ctxs: [ECValList2([], (), bindings), ...ctxs]}, frames: [{stack: [], rewrite: None}]})
-    /*- 2t. Focus on variable. */
-    |      {program: {focus: VB(ValBind(x, e)), ctxs}, frames: [{stack: [], rewrite: None}]} =>
-      Some({program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ...ctxs]}, frames: [{stack: [], rewrite: None}]})
-    /*- 3e. Push variable onto stack. */
-    |      {program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ...ctxs]}, frames: [{stack: [], rewrite: None}]} =>
-      Some({program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ...ctxs]}, frames: [{stack: [(x, None)], rewrite: None}]})
-    /*- 4t. Refocus on val list. */
-    |      {program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ECValList2([], (), bindings), ...ctxs]}, frames: [{stack: [(_, None)], rewrite: None}]} =>
-      Some({program: {focus: VB(ValBind(x, e)), ctxs: [ECValList2([], (), bindings), ...ctxs]}, frames: [{stack: [(x, None)], rewrite: None}]})
-    /*- 5t. Focus on subexpression. */
-    |      {program: {focus: VB(ValBind(x, e)), ctxs: [ECValList2([], (), bindings), ...ctxs]}, frames: [{stack: [(_, None)], rewrite: None}]} =>
-      Some({program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValList2([], (), bindings), ...ctxs]}, frames: [{stack: [(x, None)], rewrite: None}]})
-    /*- 6e. Push the subexpression into rewrite. */
-    |      {program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValList2([], (), bindings), ...ctxs]}, frames: [{stack: [(_, None)], rewrite: None}]} =>
-      Some({program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValList2([], (), bindings), ...ctxs]}, frames: [{stack: [(x, None)], rewrite: Some({focus: e, ctxs: []})}]})
-    /*- 7e. Push value onto stack. */
-    |      {program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValList2([], (), bindings), ...ctxs]}, frames: [{stack: [(_, None)], rewrite: Some({focus: Value(v), ctxs: []})}]}
-    =>
-      Some({program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValList2([], (), bindings), ...ctxs]}, frames: [{stack: [(x, Some(v))], rewrite: None}]})
-    /*- 8t. Refocus on val list. TODO: this will cause an infinite loop in the general case b/c it looks like the precondition for the first rule. One possibility is to have a "silent" value that gets modified in the program context. */
-    |      {program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValList2([], (), bindings), ...ctxs]}, frames: [{stack: [(_, Some(v))], rewrite: None}]} =>
-      Some({program: {focus: VB(ValBind(x, e)), ctxs: [ECValList2([], (), bindings), ...ctxs]}, frames: [{stack: [(x, Some(v))], rewrite: None}]})
-    /*- 9t. Focus on the next binding. */
-    |      {program: {focus: VB(ValBind(x1, e1)), ctxs: [ECValList2([], (), [ValBind(x2, e2), ...bindings]), ...ctxs]}, frames: [{stack: [(_, Some(v1))], rewrite: None}]} =>
-      Some({program: {focus: VB(ValBind(x2, e2)), ctxs: [ECValList2([ValBind(x1, e1)], (), bindings), ...ctxs]}, frames: [{stack: [(x1, Some(v1))], rewrite: None}]})
+      Some({program: {focus: VB(ValBind(x, e)), ctxs: [ECValListEnter([], (), bindings), ...ctxs]}, frames: [{stack: [], rewrite: None}]})
     | _ => None
   };
 
@@ -259,6 +198,21 @@ let rec iterateMaybeAux = (f, x) =>
 
 let iterateMaybe = (f, x) => iterateMaybeAux(f, Some(x));
 
+let rec iterateMaybeAuxBounded = (i, f, x) =>
+  if (i <= 0) {
+    []
+  } else {
+    switch (x) {
+      | None => []
+      | Some(x) =>
+          let fx = f(x);
+          [x, ...iterateMaybeAuxBounded(i - 1, f, fx)]
+      }
+  };
+
+/* lazy would make this easier! */
+let iterateMaybeMaxDepth = (i, f, x) => iterateMaybeAuxBounded(i, f, Some(x));
+
 let isNone = (o) =>
   switch (o) {
     | None => true
@@ -273,7 +227,8 @@ let isFinal = (c) =>
     | _ => false
   };
 
-/* This is more robust in a lazy language! */
+
+let interpretTraceBounded = (~maxDepth=100, p) => takeWhileInclusive((c) => !isFinal(c), iterateMaybeMaxDepth(maxDepth, step, inject(p)));
 let interpretTrace = (p) => takeWhileInclusive((c) => !isFinal(c), iterateMaybe(step, inject(p)));
 
 let extract = (c) =>

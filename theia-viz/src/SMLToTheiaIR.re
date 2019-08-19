@@ -38,76 +38,12 @@ let compileSMLEvalCtx = (ec) =>
     | ECPlusR(v1, ()) => {ops: [<> </>, React.string(" + "), <> </>], args: [compileSMLValue(v1)], holePos: 1}
     | ECValBindVar((), e) => {ops: [<> </>, React.string(" = "), <> </>], args: [compileExpr(e)], holePos: 0}
     | ECValBindExpr(x, ()) => {ops: [<> </>, React.string(" = "), <> </>], args: [Atom(React.string(x))], holePos: 1}
-    | ECValList2(prevBindings, (), nextBindings) =>
+    | ECValListEnter(prevBindings, (), nextBindings) =>
         let ops = [React.string("val ")] @ ((1--(List.length(prevBindings) + List.length(nextBindings))) |> List.fold_left((l, _) => [<> {React.string(";")} <br /> {React.string("val ")} </>, ...l], [])) @ [React.string(";")];
         {ops, args: List.map(compileValBind, prevBindings @ nextBindings), holePos: List.length(prevBindings)}
-    | ECValList(bindings, i) =>
-        /* TODO: this is ugly! */
-        let rec loop = (~newline=true, bs, idx) =>
-        switch (bs) {
-            | [] => ([], [])
-            | [vb, ...bs] => 
-                if (idx == i) {
-                    /* let (ops, args) = ([React.string("val "), React.string(" = "), <> {React.string(";")} <br /> </>],
-                    [compileExpr(e)]);
-                    let (loop_ops, loop_args) = loop(bs, idx+1);
-                    (ops @ loop_ops, args @ [Atom(<> </>)] @ loop_args) */
-                    let (loop_ops, loop_args) = loop(bs, idx+1);
-                    ([<> </>, ...loop_ops], loop_args)
-                } else {
-
-                    let (ops, args) = ([React.string("val "), React.string(";")],
-                                       [compileValBind(vb)]);
-                    let (loop_ops, loop_args) = loop(bs, idx+1);
-                    if (newline) {
-                        ([<br />] @ ops @ loop_ops, [Atom(<> </>)] @ args @ loop_args)
-                    } else {
-                        (ops @ loop_ops, args @ loop_args)
-                    }
-                }
-        };
-        let (ops, args) = loop(bindings, 0);
-        {ops, args, holePos: 2*i}
-    | ECValListVar(bindings, i) =>
-        /* TODO: this is ugly! */
-        let rec loop = (bs, idx) =>
-        switch (bs) {
-            | [] => ([], [])
-            | [ValBind(x, e), ...bs] => 
-                if (idx == i) {
-                    let (ops, args) = ([React.string("val "), React.string(" = "), <> {React.string(";")} <br /> </>],
-                    [compileExpr(e)]);
-                    let (loop_ops, loop_args) = loop(bs, idx+1);
-                    (ops @ loop_ops, args @ [Atom(<> </>)] @ loop_args)
-                } else {
-                    let (ops, args) = ([React.string("val "), <> {React.string(";")} <br /> </>],
-                                       [compileValBind(ValBind(x, e))]);
-                    let (loop_ops, loop_args) = loop(bs, idx+1);
-                    (ops @ loop_ops, args @ [Atom(<> </>)] @ loop_args);
-                }
-        };
-        let (ops, args) = loop(bindings, 0);
-        {ops, args, holePos: 3*i}
-    | ECValListExpr(bindings, i) =>
-        /* TODO: this is ugly! */
-        let rec loop = (bs, idx) =>
-        switch (bs) {
-            | [] => ([], [])
-            | [ValBind(x, e), ...bs] => 
-                if (idx == i) {
-                    let (ops, args) = ([React.string("val "), React.string(" = "), <> {React.string(";")} <br /> </>],
-                    [Atom(React.string(x))]);
-                    let (loop_ops, loop_args) = loop(bs, idx+1);
-                    (ops @ loop_ops, args @ [Atom(<> </>)] @ loop_args)
-                } else {
-                    let (ops, args) = ([React.string("val "), <> {React.string(";")} <br /> </>],
-                                       [compileValBind(ValBind(x, e))]);
-                    let (loop_ops, loop_args) = loop(bs, idx+1);
-                    (ops @ loop_ops, args @ [Atom(<> </>)] @ loop_args);
-                }
-        };
-        let (ops, args) = loop(bindings, 0);
-        {ops, args, holePos: 3*i+1}
+    | ECValListExit(prevBindings, (), nextBindings) =>
+        let ops = [React.string("val ")] @ ((1--(List.length(prevBindings) + List.length(nextBindings))) |> List.fold_left((l, _) => [<> {React.string(";")} <br /> {React.string("val ")} </>, ...l], [])) @ [React.string(";")];
+        {ops, args: List.map(compileValBind, prevBindings @ nextBindings), holePos: List.length(prevBindings)}
     /* | _ => raise(failwith("todo")) */
   };
 
