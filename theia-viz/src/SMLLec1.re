@@ -1,4 +1,9 @@
 /* TODO:
+    - implement nested evaluation contexts for val list
+    - fix all the printing bugs with val list and evaluation contexts
+    - use highlighting for the evaluation contexts (is this saved in my other local version?)
+    - remove parens
+
     - implement val binding
         - entirely in rewrite section, no nesting
           - TODO: add x with no binding to environment first. then evaluate RHS. then pop back up. then add value to env
@@ -7,6 +12,7 @@
           - DO THIS ONE NEXT! IT'S THE MOST IMPORTANT ONE! IT WILL TELL ME THE MOST!
         - with nested lets creating a sequence of frames
     - implement low-level variable lookup. will also give some indication of how to skip steps intelligently
+    - grammar: https://people.mpi-sws.org/~rossberg/sml.html
  */
 /* TODO: figure out how to do monads in reason/ocaml. there's some ppx stuff. */
 /* Building up a very wrong, very simplistic SML interpreter. Grammar is not correct. */
@@ -16,25 +22,34 @@
 type smlValue =
   | VInt(int);
 
-type smlAST =
+type expr =
   | Int(int)
-  | Plus(smlAST, smlAST)
+  | Plus(expr, expr)
   | Var(string)
-  | ValList(list((string, smlAST)))
+  | ValList(list(valBind))
   /* needed for evaluation. shouldn't be produced by parser.
      allows us to write intermediate terms where subexpressions are already values. */
-  | Value(smlValue);
+  | Value(smlValue)
+and valBind =
+  | ValBind(string, expr);
 
 type hole = unit;
 
 type smlEvalCtx =
-  | ECPlusL(hole, smlAST)
+  | ECPlusL(hole, expr)
   | ECPlusR(smlValue, hole)
   /* TODO: in the future, probably just need to copy SML's grammar more closely, which has "val <binding>"
     separate from the equality inside that binding */
-  | ECValList(list((string, smlAST)), int)
-  | ECValListVar(list((string, smlAST)), int)
-  | ECValListExpr(list((string, smlAST)), int);
+  | ECValBindVar(hole, expr)
+  | ECValBindExpr(string, hole)
+  | ECValList2(list(valBind), hole, list(valBind)) /* stores VBs before and after */
+  | ECValList(list(valBind), int) /* TODO: deprecate */
+  | ECValListVar(list(valBind), int) /* TODO: deprecate */
+  | ECValListExpr(list(valBind), int); /* TODO: deprecate */
+
+type grammar =
+  | Expr(expr)
+  | VB(valBind);
 
 let ex0 = Int(5);
 let ex1 = Plus(Int(5), Int(5));
@@ -42,16 +57,16 @@ let ex2 = Plus(Int(1), Plus(Int(2), Int(3)));
 let ex3 = Plus(Plus(Int(2), Int(3)), Int(1));
 let ex4 = Plus(Var("x"), Int(2));
 let ex5 = Plus(Var("x"), Var("y"));
-let ex6 = ValList([("x", Int(34))]);
+let ex6 = ValList([ValBind("x", Int(34))]);
 
 /* A prefix of "My first ML program" from lecture 1. */
-let exLec1 = ValList([("x", Int(34)),
-                   ("y", Int(17)),
-                   ("z", Plus(Plus(Var("x"), Var("y")), Plus(Var("y"), Int(2))))]);
+let exLec1 = ValList([ValBind("x", Int(34)),
+                   ValBind("y", Int(17)),
+                   ValBind("z", Plus(Plus(Var("x"), Var("y")), Plus(Var("y"), Int(2))))]);
 
-let exLec0 = ValList([("x", Int(34)),
-                      ("y", Int(17)),
-                      ("z", Int(42))]);
+let exLec0 = ValList([ValBind("x", Int(34)),
+                      ValBind("y", Int(17)),
+                      ValBind("z", Int(42))]);
 
 /* Configuration (i.e. AM state description) */
 /* TODO: separate progam and rewrite grammars?  */
@@ -61,11 +76,11 @@ sort of a heap */
 /* TODO: show rewrite history or not? */
 /* TODO: pretty print configuration so it can be logged well. */
 type stack = list((string, option(smlValue)));
-/* might want smlAST to actually be an optional to support val bindings that don't end in an expression */
-type rewrite = { focus: smlAST, ctxs: list(smlEvalCtx) };
+/* might want expr to actually be an optional to support val bindings that don't end in an expression */
+type rewrite = { focus: expr, ctxs: list(smlEvalCtx) };
 type frame = { stack, rewrite: option(rewrite) }
 /* TODO: remove the option here! */
-type program = { focus: smlAST, ctxs: list(smlEvalCtx) };
+type program = { focus: grammar, ctxs: list(smlEvalCtx) };
 type configuration = { program, frames: list(frame) };
 
 let rec lookup = (key, stack) =>
@@ -122,6 +137,7 @@ let step = (c: configuration): option(configuration) =>
     | _ => None
   }; */
 
+/* 
 let step = (c: configuration): option(configuration) =>
   switch (c) {
     /* rewrite int */
@@ -132,11 +148,11 @@ let step = (c: configuration): option(configuration) =>
     /* TODO: rules reversed so matching works properly? */
     /* TODO: generalize the rules so they can use arbitrarily long val lists */
     /*- 1t. Focus on first binding  */
-    |      {program: {focus: ValList([(x, e), ...bindings]), ctxs}, frames: []} =>
-      Some({program: {focus: ValList([(x, e)]), ctxs: [ECValList([(x, e), ...bindings], 0), ...ctxs]}, frames: [{stack: [], rewrite: None}]})
+    |      {program: {focus: ValList([ValBind(x, e), ...bindings]), ctxs}, frames: []} =>
+      Some({program: {focus: ValList([ValBind(x, e)]), ctxs: [ECValList([ValBind(x, e), ...bindings], 0), ...ctxs]}, frames: [{stack: [], rewrite: None}]})
     /*- 2t. Focus on variable in binding. */
-    |      {program: {focus, ctxs: [ECValList([(x, e), ...bindings], i), ...ctxs]}, frames: [{stack: [], rewrite: None}]} =>
-      Some({program: {focus: Var(x), ctxs: [ECValListVar([(x, e), ...bindings], i), ...ctxs]}, frames: [{stack: [], rewrite: None}]})
+    |      {program: {focus, ctxs: [ECValList([ValBind(x, e), ...bindings], i), ...ctxs]}, frames: [{stack: [], rewrite: None}]} =>
+      Some({program: {focus: Var(x), ctxs: [ECValListVar([ValBind(x, e), ...bindings], i), ...ctxs]}, frames: [{stack: [], rewrite: None}]})
     /*- 3e. Push variable onto stack. TODO: what about when there are more bindings? */
     |      {program: {focus: Var(x), ctxs: [ECValListVar(bindings, i), ...ctxs]}, frames: [{stack: [], rewrite}]} =>
       Some({program: {focus: Var(x), ctxs: [ECValListVar(bindings, i), ...ctxs]}, frames: [{stack: [(x, None)], rewrite: None}]})
@@ -144,7 +160,7 @@ let step = (c: configuration): option(configuration) =>
     |      {program: {focus: Var(x), ctxs: [ECValListVar(bindings, i), ...ctxs]}, frames: [{stack: [(_, None)], rewrite}]} =>
       Some({program: {focus: ValList([List.nth(bindings, i)]), ctxs: [ECValList(bindings, i), ...ctxs]}, frames: [{stack: [(x, None)], rewrite}]})
     /*- 5t. Focus on subexpression. */
-    |      {program: {focus: ValList([(_, e)]), ctxs: [ECValList(bindings, i), ...ctxs]}, frames: [{stack: [(x, None)], rewrite}]} =>
+    |      {program: {focus: ValList([ValBind(_, e)]), ctxs: [ECValList(bindings, i), ...ctxs]}, frames: [{stack: [(x, None)], rewrite}]} =>
       Some({program: {focus: e, ctxs: [ECValListExpr(bindings, i), ...ctxs]}, frames: [{stack: [(x, None)], rewrite}]})
     /*- 6e. Push the subexpression into rewrite. */
     |      {program: {focus: e, ctxs: [ECValListExpr(bindings, i), ...ctxs]}, frames: [{stack: [(x, None)], rewrite: None}]} =>
@@ -179,10 +195,50 @@ let step = (c: configuration): option(configuration) =>
         Some({program: {focus: e2, ctxs: [ECValListExpr(bindings, i+1), ...ctxs]}, frames: [{stack: [(x1, v1), ...stack], rewrite: Some({focus: e2, ctxs: []})}]})
       } */
     | _ => None
+  }; */
+
+let step = (c: configuration): option(configuration) =>
+  switch (c) {
+      /* rewrite int */
+    |      {program, frames: [{ stack, rewrite: Some({focus: Int(n), ctxs}) }]} =>
+      Some({program, frames: [{ stack, rewrite: Some({focus: Value(VInt(n)), ctxs}) }]})
+
+    /* TODO: rules reversed so matching works properly? */
+    /* TODO: generalize the rules so they can use arbitrarily long val lists and also so they're simpler */
+    /* TODO: write rule that ends val binding visiting */
+    /*- 1t. Focus on first binding  */
+    |      {program: {focus: Expr(ValList([ValBind(x, e), ...bindings])), ctxs}, frames: []} =>
+      Some({program: {focus: VB(ValBind(x, e)), ctxs: [ECValList2([], (), bindings), ...ctxs]}, frames: [{stack: [], rewrite: None}]})
+    /*- 2t. Focus on variable. */
+    |      {program: {focus: VB(ValBind(x, e)), ctxs}, frames: [{stack: [], rewrite: None}]} =>
+      Some({program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ...ctxs]}, frames: [{stack: [], rewrite: None}]})
+    /*- 3e. Push variable onto stack. */
+    |      {program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ...ctxs]}, frames: [{stack: [], rewrite: None}]} =>
+      Some({program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ...ctxs]}, frames: [{stack: [(x, None)], rewrite: None}]})
+    /*- 4t. Refocus on val list. */
+    |      {program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ECValList2([], (), bindings), ...ctxs]}, frames: [{stack: [(_, None)], rewrite: None}]} =>
+      Some({program: {focus: VB(ValBind(x, e)), ctxs: [ECValList2([], (), bindings), ...ctxs]}, frames: [{stack: [(x, None)], rewrite: None}]})
+    /*- 5t. Focus on subexpression. */
+    |      {program: {focus: VB(ValBind(x, e)), ctxs: [ECValList2([], (), bindings), ...ctxs]}, frames: [{stack: [(_, None)], rewrite: None}]} =>
+      Some({program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValList2([], (), bindings), ...ctxs]}, frames: [{stack: [(x, None)], rewrite: None}]})
+    /*- 6e. Push the subexpression into rewrite. */
+    |      {program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValList2([], (), bindings), ...ctxs]}, frames: [{stack: [(_, None)], rewrite: None}]} =>
+      Some({program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValList2([], (), bindings), ...ctxs]}, frames: [{stack: [(x, None)], rewrite: Some({focus: e, ctxs: []})}]})
+    /*- 7e. Push value onto stack. */
+    |      {program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValList2([], (), bindings), ...ctxs]}, frames: [{stack: [(_, None)], rewrite: Some({focus: Value(v), ctxs: []})}]}
+    =>
+      Some({program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValList2([], (), bindings), ...ctxs]}, frames: [{stack: [(x, Some(v))], rewrite: None}]})
+    /*- 8t. Refocus on val list. TODO: this will cause an infinite loop in the general case b/c it looks like the precondition for the first rule. One possibility is to have a "silent" value that gets modified in the program context. */
+    |      {program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValList2([], (), bindings), ...ctxs]}, frames: [{stack: [(_, Some(v))], rewrite: None}]} =>
+      Some({program: {focus: VB(ValBind(x, e)), ctxs: [ECValList2([], (), bindings), ...ctxs]}, frames: [{stack: [(x, Some(v))], rewrite: None}]})
+    /*- 9t. Focus on the next binding. */
+    |      {program: {focus: VB(ValBind(x1, e1)), ctxs: [ECValList2([], (), [ValBind(x2, e2), ...bindings]), ...ctxs]}, frames: [{stack: [(_, Some(v1))], rewrite: None}]} =>
+      Some({program: {focus: VB(ValBind(x2, e2)), ctxs: [ECValList2([ValBind(x1, e1)], (), bindings), ...ctxs]}, frames: [{stack: [(x1, Some(v1))], rewrite: None}]})
+    | _ => None
   };
 
 let inject = (e) => {
-  {program: { focus: e, ctxs: []}, frames: []}
+  {program: { focus: Expr(e), ctxs: []}, frames: []}
 };
 
 /* https://stackoverflow.com/a/22472610 */

@@ -4,7 +4,6 @@
     - refactor into multiple files
     - use JSON trace intermediate format
 */
-
 let rlist = (l) => l |> Array.of_list |> React.array;
 
 /* https://stackoverflow.com/a/244104 */
@@ -258,15 +257,15 @@ let rec kn2Pretty = (~parens=true, k) =>
     </fieldset>
 }
 /* bracket style */
-and prettyFreeze = (~nestNum=0, {ops, args, holePos}, arg) => {
+/* and prettyFreeze = (~nestNum=0, {ops, args, holePos}, arg) => {
   let newArgs = Util.insert(<> render_open_brack arg render_close_brack </>, List.map(kn2Pretty, args), holePos);
   Util.interleave(ops, newArgs) |> Util.prettierList(~parens=false, ~space=false)
-}
-/* underline style */
-/* and prettyFreeze = (~nestNum=0, {ops, args, holePos}, arg) => {
-  let newArgs = Util.insert(<span style=(ReactDOMRe.Style.make(~borderBottom="1px solid blue", ~paddingBottom=(string_of_int(nestNum*2) ++ "px"), ()))> arg </span>, List.map(kn2Pretty, args), holePos);
-  Util.interleave(List.map(React.string, ops), newArgs) |> Util.prettierList
 } */
+/* underline style */
+and prettyFreeze = (~nestNum=0, {ops, args, holePos}, arg) => {
+  let newArgs = Util.insert(<span style=(ReactDOMRe.Style.make(~borderBottom="2px solid blue", ~paddingBottom=(string_of_int(nestNum*3) ++ "px"), ()))> arg </span>, List.map(kn2Pretty, args), holePos);
+  Util.interleave(ops, newArgs) |> Util.prettierList(~parens=false, ~space=false)
+}
 and prettyKont2List = (~nestNum=0, ~parens=false, kn, fs) =>
   switch (fs) {
   | [] => kn2Pretty(~parens, kn)
