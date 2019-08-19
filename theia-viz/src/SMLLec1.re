@@ -1,19 +1,13 @@
+/* Building up a very wrong, very simplistic SML interpreter. Grammar is not correct. */
+/* - grammar reference: https://people.mpi-sws.org/~rossberg/sml.html */
 /* TODO:
-    - use highlighting for the evaluation contexts (is this saved in my other local version?)
-    - remove parens around val bindings
+    - fix parentheses
 
     - implement val binding
-        - entirely in rewrite section, no nesting
-          - TODO: add x with no binding to environment first. then evaluate RHS. then pop back up. then add value to env
-        - with a program counter in a program section that controls flow and sends subexpressions to the rewrite area
-          (add the program section back!)
-          - DO THIS ONE NEXT! IT'S THE MOST IMPORTANT ONE! IT WILL TELL ME THE MOST!
         - with nested lets creating a sequence of frames
     - implement low-level variable lookup. will also give some indication of how to skip steps intelligently
-    - grammar: https://people.mpi-sws.org/~rossberg/sml.html
  */
 /* TODO: figure out how to do monads in reason/ocaml. there's some ppx stuff. */
-/* Building up a very wrong, very simplistic SML interpreter. Grammar is not correct. */
 
 /* TODO: highlight code blocks, too? Might be useful for nested let expressions. */
 

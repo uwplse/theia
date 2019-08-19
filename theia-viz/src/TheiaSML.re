@@ -262,8 +262,15 @@ let rec kn2Pretty = (~parens=true, k) =>
   Util.interleave(ops, newArgs) |> Util.prettierList(~parens=false, ~space=false)
 } */
 /* underline style */
-and prettyFreeze = (~nestNum=0, {ops, args, holePos}, arg) => {
+/* and prettyFreeze = (~nestNum=0, {ops, args, holePos}, arg) => {
   let newArgs = Util.insert(<span style=(ReactDOMRe.Style.make(~borderBottom="2px solid blue", ~paddingBottom=(string_of_int(nestNum*3) ++ "px"), ()))> arg </span>, List.map(kn2Pretty, args), holePos);
+  Util.interleave(ops, newArgs) |> Util.prettierList(~parens=false, ~space=false)
+} */
+/* Hazel-style highlighting */
+and prettyFreeze = (~nestNum=0, {ops, args, holePos}, arg) => {
+  /* TODO: figure out opacity and lightness automatically based on max depth? sacrifices some completeness otherwise */
+//   let parens = nestNum == 0 ? false : true;
+  let newArgs = Util.insert(<div style=(ReactDOMRe.Style.make(~display="inline", ~backgroundColor="hsla(240, 100%, " ++ string_of_int(80 - nestNum*10) ++ "%, 0.33)", ()))> arg </div>, List.map(kn2Pretty, args), holePos);
   Util.interleave(ops, newArgs) |> Util.prettierList(~parens=false, ~space=false)
 }
 and prettyKont2List = (~nestNum=0, ~parens=false, kn, fs) =>
