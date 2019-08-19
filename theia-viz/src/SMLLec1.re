@@ -36,8 +36,6 @@ type hole = unit;
 type smlEvalCtx =
   | ECPlusL(hole, expr)
   | ECPlusR(smlValue, hole)
-  /* TODO: in the future, probably just need to copy SML's grammar more closely, which has "val <binding>"
-    separate from the equality inside that binding */
   | ECValBindVar(hole, expr)
   | ECValBindExpr(string, hole)
   | ECValListEnter(list(valBind), hole, list(valBind)) /* stores VBs before and after */
@@ -85,63 +83,31 @@ let rec lookup = (key, stack) =>
     | [(k, v), ...stack] => if (k == key) { Some(v) } else { lookup(key, stack) }
   };
 
-/* /* really each rule should probably just move a *single* thing! */
 let step = (c: configuration): option(configuration) =>
   switch (c) {
-    /* int */
-    |      {program, frames: [{ stack, rewrite: {focus: Some(Int(n)), ctxs} }]} =>
-      Some({program, frames: [{ stack, rewrite: {focus: Some(Value(VInt(n))), ctxs} }]})
-
-    /* + */
-    /* written in reverse b/c some patterns fight with each other for precedence, but not in this order. */
-    /*- 5e. Evaluate +. */
-    |      {program, frames: [{stack, rewrite: {focus: Some(Plus(Value(VInt(v1)), Value(VInt(v2)))), ctxs}}]} =>
-      Some({program, frames: [{stack, rewrite: {focus: Some(Value(VInt(v1 + v2))), ctxs}}]})
-    /*- 4t. Focus on + after evaluating RHS. */
-    |      {program, frames: [{stack, rewrite: {focus: Some(Value(v2)), ctxs: [ECPlusR(v1, ()), ...ctxs']}}]} =>
-      Some({program, frames: [{stack, rewrite: {focus: Some(Plus(Value(v1), Value(v2))), ctxs: ctxs'}}]})
-    /*- 3t. Focus on RHS. */
-    |      {program, frames: [{stack, rewrite: {focus: Some(Plus(Value(v1), e2)), ctxs}}]} =>
-      Some({program, frames: [{stack, rewrite: {focus: Some(e2), ctxs: [ECPlusR(v1, ()), ...ctxs]}}]})
-    /*- 2t. Focus on + after evaluating LHS. */
-    |      {program, frames: [{stack, rewrite: {focus: Some(Value(v1)), ctxs: [ECPlusL((), e2), ...ctxs']}}]} =>
-      Some({program, frames: [{stack, rewrite: {focus: Some(Plus(Value(v1), e2)), ctxs: ctxs'}}]})
-    /*- 1t. Focus on LHS. */
-    |      {program, frames: [{stack, rewrite: {focus: Some(Plus(e1, e2)), ctxs}}]} =>
-      Some({program, frames: [{stack, rewrite: {focus: Some(e1), ctxs: [ECPlusL((), e2), ...ctxs]}}]})
-
-    /* val list */
-    /*- 1t. Focus on first binding  */
-    |      {program, frames: [{stack, rewrite: {focus: Some(ValList([(x, e), ...bindings])), ctxs}}]} =>
-      Some({program, frames: [{stack, rewrite: {focus: Some(e), ctxs: [ECValList((x, ()), bindings), ...ctxs]}}]})
-    /*- 2e. Push binding onto stack and focus on next binding. */
-    /* TODO: should be two rules? or at least two steps? */
-    |      {program, frames: [{stack, rewrite: {focus: Some(Value(v1)), ctxs: [ECValList((x1, ()), [(x2, e2), ...bindings]), ...ctxs']}}]} =>
-      Some({program, frames: [{stack: [(x1, v1), ...stack], rewrite: {focus: Some(e2), ctxs: [ECValList((x2, ()), bindings), ...ctxs']}}]})
-    /*- 3e. Push last binding onto stack. */
-    |      {program, frames: [{stack, rewrite: {focus: Some(Value(v)), ctxs: [ECValList((x, ()), []), ...ctxs']}}]} =>
-      Some({program, frames: [{stack: [(x, v), ...stack], rewrite: {focus: None, ctxs: ctxs'}}]})
-
-    /* var lookup */
-    /* TODO: this should be in the option monad */
-    |      {program, frames: [{stack, rewrite: {focus: Some(Var(x)) , ctxs}}]} =>
-      switch (lookup(x, stack)) {
-        | None => None
-        | Some(value) => Some({program, frames: [{stack, rewrite: {focus: Some(Value(value)), ctxs}}]})
-      }
-
-    | _ => None
-  }; */
-
-let step = (c: configuration): option(configuration) =>
-  switch (c) {
-      /* rewrite int */
+    /* rewrite int */
     |      {program, frames: [{ stack, rewrite: Some({focus: Int(n), ctxs}) }]} =>
       Some({program, frames: [{ stack, rewrite: Some({focus: Value(VInt(n)), ctxs}) }]})
 
-    /* TODO: rules reversed so matching works properly? */
-    /* TODO: generalize the rules so they can use arbitrarily long val lists and also so they're simpler */
-    /* TODO: write rule that ends val binding visiting */
+    /* rewrite + */
+    /* written in reverse b/c some patterns fight with each other for precedence, but not in this order. */
+    /*- 5e. Evaluate +. */
+    |      {program, frames: [{stack, rewrite: Some({focus: Plus(Value(VInt(v1)), Value(VInt(v2))), ctxs})}]} =>
+      Some({program, frames: [{stack, rewrite: Some({focus: Value(VInt(v1 + v2)), ctxs})}]})
+    /*- 4t. Focus on + after evaluating RHS. */
+    |      {program, frames: [{stack, rewrite: Some({focus: Value(v2), ctxs: [ECPlusR(v1, ()), ...ctxs']})}]} =>
+      Some({program, frames: [{stack, rewrite: Some({focus: Plus(Value(v1), Value(v2)), ctxs: ctxs'})}]})
+    /*- 3t. Focus on RHS. */
+    |      {program, frames: [{stack, rewrite: Some({focus: Plus(Value(v1), e2), ctxs})}]} =>
+      Some({program, frames: [{stack, rewrite: Some({focus: e2, ctxs: [ECPlusR(v1, ()), ...ctxs]})}]})
+    /*- 2t. Focus on + after evaluating LHS. */
+    |      {program, frames: [{stack, rewrite: Some({focus: Value(v1), ctxs: [ECPlusL((), e2), ...ctxs']})}]} =>
+      Some({program, frames: [{stack, rewrite: Some({focus: Plus(Value(v1), e2), ctxs: ctxs'})}]})
+    /*- 1t. Focus on LHS. */
+    |      {program, frames: [{stack, rewrite: Some({focus: Plus(e1, e2), ctxs})}]} =>
+      Some({program, frames: [{stack, rewrite: Some({focus: e1, ctxs: [ECPlusL((), e2), ...ctxs]})}]})
+
+    /* val list */
     /*- 10t. Leave val list.  */
     |      {program: {focus: VB(ValBind(x1, e1)), ctxs: [ECValListExit(prevB, (), []), ...ctxs]}, frames: [{stack: [(_, Some(v1)), ...stack], rewrite: None}]} =>
       Some({program: {focus: Expr(ValList(prevB @ [ValBind(x1, e1)])), ctxs}, frames: [{stack: [(x1, Some(v1)), ...stack], rewrite: None}]})
@@ -173,6 +139,15 @@ let step = (c: configuration): option(configuration) =>
     /*- 1t. Focus on first binding  */
     |      {program: {focus: Expr(ValList([ValBind(x, e), ...bindings])), ctxs}, frames: []} =>
       Some({program: {focus: VB(ValBind(x, e)), ctxs: [ECValListEnter([], (), bindings), ...ctxs]}, frames: [{stack: [], rewrite: None}]})
+
+    /* var lookup */
+    /* TODO: this should be in the option monad */
+    /* TODO: maybe make lookup handle the nested options (they arise from partially filled stacks) */
+    |      {program, frames: [{stack, rewrite: Some({focus: Var(x) , ctxs})}]} =>
+      switch (lookup(x, stack)) {
+        | None | Some(None) => None
+        | Some(Some(value)) => Some({program, frames: [{stack, rewrite: Some({focus: Value(value), ctxs})}]})
+      }
     | _ => None
   };
 
