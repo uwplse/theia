@@ -28,7 +28,7 @@ type hole = unit;
 type smlEvalCtx =
   | ECPlusL(hole, smlAST)
   | ECPlusR(smlValue, hole)
-  | ECValList((string, hole), list((string, smlAST)));
+  | ECValList(list((string, smlAST)), int);
 
 let ex0 = Int(5);
 let ex1 = Plus(Int(5), Int(5));
@@ -56,9 +56,10 @@ sort of a heap */
 /* TODO: pretty print configuration so it can be logged well. */
 type stack = list((string, smlValue));
 /* might want smlAST to actually be an optional to support val bindings that don't end in an expression */
-type rewrite = { smlAST, ctxs: list(smlEvalCtx) };
-type frame = { stack, rewrite }
-type program = { smlAST, ctxs: list(smlEvalCtx) };
+type rewrite = { focus: smlAST, ctxs: list(smlEvalCtx) };
+type frame = { stack, rewrite: option(rewrite) }
+/* TODO: remove the option here! */
+type program = { focus: option(smlAST), ctxs: list(smlEvalCtx) };
 type configuration = { program, frames: list(frame) };
 
 let rec lookup = (key, stack) =>
@@ -67,78 +68,82 @@ let rec lookup = (key, stack) =>
     | [(k, v), ...stack] => if (k == key) { Some(v) } else { lookup(key, stack) }
   };
 
-/* really each rule should probably just move a *single* thing! */
+/* /* really each rule should probably just move a *single* thing! */
 let step = (c: configuration): option(configuration) =>
   switch (c) {
     /* int */
-    |      {program, frames: [{ stack, rewrite: {smlAST: Int(n), ctxs} }]} =>
-      Some({program, frames: [{ stack, rewrite: {smlAST: Value(VInt(n)), ctxs} }]})
+    |      {program, frames: [{ stack, rewrite: {focus: Some(Int(n)), ctxs} }]} =>
+      Some({program, frames: [{ stack, rewrite: {focus: Some(Value(VInt(n))), ctxs} }]})
 
     /* + */
     /* written in reverse b/c some patterns fight with each other for precedence, but not in this order. */
     /*- 5e. Evaluate +. */
-    |      {program, frames: [{stack, rewrite: {smlAST: Plus(Value(VInt(v1)), Value(VInt(v2))), ctxs}}]} =>
-      Some({program, frames: [{stack, rewrite: {smlAST: Value(VInt(v1 + v2)), ctxs}}]})
+    |      {program, frames: [{stack, rewrite: {focus: Some(Plus(Value(VInt(v1)), Value(VInt(v2)))), ctxs}}]} =>
+      Some({program, frames: [{stack, rewrite: {focus: Some(Value(VInt(v1 + v2))), ctxs}}]})
     /*- 4t. Focus on + after evaluating RHS. */
-    |      {program, frames: [{stack, rewrite: {smlAST: Value(v2), ctxs: [ECPlusR(v1, ()), ...ctxs']}}]} =>
-      Some({program, frames: [{stack, rewrite: {smlAST: Plus(Value(v1), Value(v2)), ctxs: ctxs'}}]})
+    |      {program, frames: [{stack, rewrite: {focus: Some(Value(v2)), ctxs: [ECPlusR(v1, ()), ...ctxs']}}]} =>
+      Some({program, frames: [{stack, rewrite: {focus: Some(Plus(Value(v1), Value(v2))), ctxs: ctxs'}}]})
     /*- 3t. Focus on RHS. */
-    |      {program, frames: [{stack, rewrite: {smlAST: Plus(Value(v1), e2), ctxs}}]} =>
-      Some({program, frames: [{stack, rewrite: {smlAST: e2, ctxs: [ECPlusR(v1, ()), ...ctxs]}}]})
+    |      {program, frames: [{stack, rewrite: {focus: Some(Plus(Value(v1), e2)), ctxs}}]} =>
+      Some({program, frames: [{stack, rewrite: {focus: Some(e2), ctxs: [ECPlusR(v1, ()), ...ctxs]}}]})
     /*- 2t. Focus on + after evaluating LHS. */
-    |      {program, frames: [{stack, rewrite: {smlAST: Value(v1), ctxs: [ECPlusL((), e2), ...ctxs']}}]} =>
-      Some({program, frames: [{stack, rewrite: {smlAST: Plus(Value(v1), e2), ctxs: ctxs'}}]})
+    |      {program, frames: [{stack, rewrite: {focus: Some(Value(v1)), ctxs: [ECPlusL((), e2), ...ctxs']}}]} =>
+      Some({program, frames: [{stack, rewrite: {focus: Some(Plus(Value(v1), e2)), ctxs: ctxs'}}]})
     /*- 1t. Focus on LHS. */
-    |      {program, frames: [{stack, rewrite: {smlAST: Plus(e1, e2), ctxs}}]} =>
-      Some({program, frames: [{stack, rewrite: {smlAST: e1, ctxs: [ECPlusL((), e2), ...ctxs]}}]})
+    |      {program, frames: [{stack, rewrite: {focus: Some(Plus(e1, e2)), ctxs}}]} =>
+      Some({program, frames: [{stack, rewrite: {focus: Some(e1), ctxs: [ECPlusL((), e2), ...ctxs]}}]})
 
     /* val list */
     /*- 1t. Focus on first binding  */
-    |      {program, frames: [{stack, rewrite: {smlAST: ValList([(x, e), ...bindings]), ctxs}}]} =>
-      Some({program, frames: [{stack, rewrite: {smlAST: e, ctxs: [ECValList((x, ()), bindings), ...ctxs]}}]})
+    |      {program, frames: [{stack, rewrite: {focus: Some(ValList([(x, e), ...bindings])), ctxs}}]} =>
+      Some({program, frames: [{stack, rewrite: {focus: Some(e), ctxs: [ECValList((x, ()), bindings), ...ctxs]}}]})
     /*- 2e. Push binding onto stack and focus on next binding. */
     /* TODO: should be two rules? or at least two steps? */
-    |      {program, frames: [{stack, rewrite: {smlAST: Value(v1), ctxs: [ECValList((x1, ()), [(x2, e2), ...bindings]), ...ctxs']}}]} =>
-      Some({program, frames: [{stack: [(x1, v1), ...stack], rewrite: {smlAST: e2, ctxs: [ECValList((x2, ()), bindings), ...ctxs']}}]})
+    |      {program, frames: [{stack, rewrite: {focus: Some(Value(v1)), ctxs: [ECValList((x1, ()), [(x2, e2), ...bindings]), ...ctxs']}}]} =>
+      Some({program, frames: [{stack: [(x1, v1), ...stack], rewrite: {focus: Some(e2), ctxs: [ECValList((x2, ()), bindings), ...ctxs']}}]})
     /*- 3e. Push last binding onto stack. */
-    /* TODO: what to return??? */
-    |      {program, frames: [{stack, rewrite: {smlAST: Value(v), ctxs: [ECValList((x, ()), []), ...ctxs']}}]} =>
-      Some({program, frames: [{stack: [(x, v), ...stack], rewrite: {smlAST: Value(VInt(-1)), ctxs: ctxs'}}]})
+    |      {program, frames: [{stack, rewrite: {focus: Some(Value(v)), ctxs: [ECValList((x, ()), []), ...ctxs']}}]} =>
+      Some({program, frames: [{stack: [(x, v), ...stack], rewrite: {focus: None, ctxs: ctxs'}}]})
 
     /* var lookup */
     /* TODO: this should be in the option monad */
-    |      {program, frames: [{stack, rewrite: {smlAST: Var(x) , ctxs}}]} =>
+    |      {program, frames: [{stack, rewrite: {focus: Some(Var(x)) , ctxs}}]} =>
       switch (lookup(x, stack)) {
         | None => None
-        | Some(value) => Some({program, frames: [{stack, rewrite: {smlAST: Value(value), ctxs}}]})
+        | Some(value) => Some({program, frames: [{stack, rewrite: {focus: Some(Value(value)), ctxs}}]})
       }
 
     | _ => None
-  };
+  }; */
 
 let step2 = (c: configuration): option(configuration) =>
   switch (c) {
     /* rewrite int */
-    |      {program, frames: [{ stack, rewrite: {smlAST: Int(n), ctxs} }]} =>
-      Some({program, frames: [{ stack, rewrite: {smlAST: Value(VInt(n)), ctxs} }]})
+    |      {program, frames: [{ stack, rewrite: Some({focus: Int(n), ctxs}) }]} =>
+      Some({program, frames: [{ stack, rewrite: Some({focus: Value(VInt(n)), ctxs}) }]})
 
     /* val list */
     /*- 1t. Focus on first binding  */
-    |      {program: {smlAST: ValList([(x, e), ...bindings]), ctxs}, frames} =>
-      Some({program: {smlAST: e, ctxs: [ECValList((x, ()), bindings), ...ctxs]}, frames: [{stack: [], rewrite: {smlAST: e, ctxs: []}}]})
-    /*- 2e. Push binding onto stack and focus on next binding. */
+    |      {program: {focus: Some(ValList([(x, e), ...bindings])), ctxs}, frames: []} =>
+      Some({program: {focus: Some(e), ctxs: [ECValList([(x, e), ...bindings], 0), ...ctxs]}, frames: [{stack: [], rewrite: Some({focus: e, ctxs: []})}]})
+    /*- 2e. Push binding onto stack and... */
     /* TODO: need to add a new evalctx that preserves the code! */
-    |      {program: {smlAST: _e1, ctxs: [ECValList((x1, ()), [(x2, e2), ...bindings]), ...ctxs]}, frames: [{stack, rewrite: {smlAST: Value(v1), ctxs: []}}]} =>
-      Some({program: {smlAST: e2, ctxs: [ECValList((x2, ()), bindings), ...ctxs]}, frames: [{stack: [(x1, v1), ...stack], rewrite: {smlAST: e2, ctxs: []}}]})
-    /*- 3e. Push last binding onto stack. */
-    /* TODO: what to return??? */
-    |      {program: {smlAST: _e, ctxs: [ECValList((x, ()), []), ...ctxs]}, frames: [{stack, rewrite: {smlAST: Value(v), ctxs: []}}]} =>
-      Some({program: {smlAST: Value(VInt(-1)), ctxs: ctxs}, frames: [{stack: [(x, v), ...stack], rewrite: {smlAST: Value(VInt(-1)), ctxs: []}}]})
+    |      {program: {focus: Some(_e1), ctxs: [ECValList(bindings, i), ...ctxs]}, frames: [{stack, rewrite: Some({focus: Value(v1), ctxs: []})}]} =>
+      let (x1, _e1) = List.nth(bindings, i);
+      if (i >= List.length(bindings) - 1) {
+        /* ... stop */
+        /* TODO: shouldn't be None. should be some sort of Stop. or maybe just no rule at all? Need to clear rewrite tho */
+        Some({program: {focus: Some(ValList(bindings)), ctxs: ctxs}, frames: [{stack: [(x1, v1), ...stack], rewrite: None}]})
+      } else {
+        /* ... focus on next binding */
+        let (_x2, e2) = List.nth(bindings, i+1);
+        Some({program: {focus: Some(e2), ctxs: [ECValList(bindings, i+1), ...ctxs]}, frames: [{stack: [(x1, v1), ...stack], rewrite: Some({focus: e2, ctxs: []})}]})
+      }
     | _ => None
   };
 
 let inject = (e) => {
-  {program: { smlAST: e, ctxs: []}, frames: []}
+  {program: { focus: Some(e), ctxs: []}, frames: []}
 };
 
 /* https://stackoverflow.com/a/22472610 */
@@ -169,7 +174,7 @@ let isNone = (o) =>
 let isFinal = (c) =>
   switch (c) {
     /* | {frames: []} => true */
-    // | {frames: [{ rewrite: {smlAST: Value(_), ctxs: []} }]} => true
+    // | {frames: [{ rewrite: {focus: Value(_), ctxs: []} }]} => true
     | _ => false
   };
 
@@ -178,5 +183,5 @@ let interpretTrace = (p) => takeWhileInclusive((c) => !isFinal(c), iterateMaybe(
 
 let extract = (c) =>
   switch (c) {
-    | {frames: [{rewrite: {smlAST: Value(VInt(n))}}]} => string_of_int(n)
+    | {frames: [{rewrite: Some({focus: Value(VInt(n))})}]} => string_of_int(n)
   };
