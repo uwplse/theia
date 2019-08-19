@@ -11,8 +11,7 @@ let compileSMLValue = (v) =>
     | VInt(n) => Value2([], [Atom(React.string(string_of_int(n)))])
   };
 
-/* TODO: these really shouldn't be strings but arbitrary HTML! That way newlines can be easy.
-    For now formatting will just be ass. */
+/* TODO: fix the off-by-one error with linebreaks getting captured in evaluation contexts. */
 let rec compileSMLAST = (ast) =>
   switch (ast) {
     | Int(n) => Atom(React.string(string_of_int(n)))
@@ -29,9 +28,49 @@ let compileSMLEvalCtx = (ec) =>
   switch (ec) {
     | ECPlusL((), e2) => {ops: [React.string(""), React.string(" + "), React.string("")], args: [compileSMLAST(e2)], holePos: 0}
     | ECPlusR(v1, ()) => {ops: [React.string(""), React.string(" + "), React.string("")], args: [compileSMLValue(v1)], holePos: 1}
-    /* TODO: do for arbitrary lists */
-    /* | ECValList((x, ()), bindings) => {ops: [React.string("val "), React.string(" = "), <> {React.string(";")} <br /> </>, React.string("")], args: [Atom(React.string(x)), Sequence2(List.map(((x, e)) => Apply2([React.string("val "), React.string(" = "), <> {React.string(";")} <br /> </>], [Atom(React.string(x)), compileSMLAST(e)]), bindings))], holePos: 1} */
     | ECValList(bindings, i) =>
+        /* TODO: this is ugly! */
+        let rec loop = (bs, idx) =>
+        switch (bs) {
+            | [] => ([], [])
+            | [(x, e), ...bs] => 
+                if (idx == i) {
+                    /* let (ops, args) = ([React.string("val "), React.string(" = "), <> {React.string(";")} <br /> </>],
+                    [compileSMLAST(e)]);
+                    let (loop_ops, loop_args) = loop(bs, idx+1);
+                    (ops @ loop_ops, args @ [Atom(React.string(""))] @ loop_args) */
+                    let (loop_ops, loop_args) = loop(bs, idx+1);
+                    ([React.string(""), ...loop_ops], loop_args)
+                } else {
+                    let (ops, args) = ([React.string("val "), React.string(" = "), <> {React.string(";")} <br /> </>],
+                                       [Atom(React.string(x)), compileSMLAST(e)]);
+                    let (loop_ops, loop_args) = loop(bs, idx+1);
+                    (ops @ loop_ops, args @ [Atom(React.string(""))] @ loop_args);
+                }
+        };
+        let (ops, args) = loop(bindings, 0);
+        {ops, args, holePos: 2*i}
+    | ECValListVar(bindings, i) =>
+        /* TODO: this is ugly! */
+        let rec loop = (bs, idx) =>
+        switch (bs) {
+            | [] => ([], [])
+            | [(x, e), ...bs] => 
+                if (idx == i) {
+                    let (ops, args) = ([React.string("val "), React.string(" = "), <> {React.string(";")} <br /> </>],
+                    [compileSMLAST(e)]);
+                    let (loop_ops, loop_args) = loop(bs, idx+1);
+                    (ops @ loop_ops, args @ [Atom(React.string(""))] @ loop_args)
+                } else {
+                    let (ops, args) = ([React.string("val "), React.string(" = "), <> {React.string(";")} <br /> </>],
+                                       [Atom(React.string(x)), compileSMLAST(e)]);
+                    let (loop_ops, loop_args) = loop(bs, idx+1);
+                    (ops @ loop_ops, args @ [Atom(React.string(""))] @ loop_args);
+                }
+        };
+        let (ops, args) = loop(bindings, 0);
+        {ops, args, holePos: 3*i}
+    | ECValListExpr(bindings, i) =>
         /* TODO: this is ugly! */
         let rec loop = (bs, idx) =>
         switch (bs) {
@@ -55,7 +94,11 @@ let compileSMLEvalCtx = (ec) =>
   };
 
 /* turn into a Map2 of KV2's. */
-let compileKVs = ((k, v)) => KV2((Atom(React.string(k)), compileSMLValue(v)))
+let compileKVs = ((k, v)) => 
+    switch (v) {
+        | None => KV2((Atom(React.string(k)), Atom(React.string(""))))
+        | Some(v) => KV2((Atom(React.string(k)), compileSMLValue(v)))
+    };
 let compileStack = (s) => Map2(List.map(compileKVs, s) |> List.rev);
 
 let compileRewrite = (rw: option(rewrite)) => 
@@ -66,10 +109,6 @@ let compileRewrite = (rw: option(rewrite)) =>
 
 let compileFrame = ({stack, rewrite}) => Sequence2([compileStack(stack), compileRewrite(rewrite)]);
 
-let compileProgram = ({focus, ctxs}: program) => 
-  switch (focus) {
-    | Some(focus) => Kont2(compileSMLAST(focus), List.map(compileSMLEvalCtx, ctxs))
-    | None => Atom(React.string(""))
-  };
+let compileProgram = ({focus, ctxs}: program) => Kont2(compileSMLAST(focus), List.map(compileSMLEvalCtx, ctxs))
 
 let smlToTheiaIR = ({program, frames}) => Sequence2([Cell2("program", [compileProgram(program)]), Cell2("frames", List.map(compileFrame, frames))]);
