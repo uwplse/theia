@@ -2,10 +2,11 @@
 /* - grammar reference: https://people.mpi-sws.org/~rossberg/sml.html */
 /* TODO:
     - fix parentheses
-
+    - if-then-else
+    - functions
     - implement val binding
         - with nested lets creating a sequence of frames
-    - implement low-level variable lookup. will also give some indication of how to skip steps intelligently
+    - implement low-level CCC variable lookup. will also give some indication of how to skip steps intelligently
  */
 /* TODO: figure out how to do monads in reason/ocaml. there's some ppx stuff. */
 
@@ -55,6 +56,11 @@ let exLec1 = ValList([ValBind("x", Int(34)),
 let exLec0 = ValList([ValBind("x", Int(34)),
                       ValBind("y", Int(17)),
                       ValBind("z", Int(42))]);
+
+let exLec2 = ValList([ValBind("x", Int(34)),
+                   ValBind("y", Int(17)),
+                   ValBind("z", Plus(Plus(Var("x"), Var("y")), Plus(Var("y"), Int(2)))),
+                   ValBind("q", Plus(Var("z"), Int(1)))]);
 
 /* Configuration (i.e. AM state description) */
 /* TODO: separate progam and rewrite grammars?  */
