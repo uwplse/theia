@@ -117,6 +117,11 @@ let step = (c: configuration): option(configuration) =>
     |      {program, frames: [{stack, rewrite: {focus: Some(Binop(bop)), valCtxs}}]} =>
       Some({program, frames: [{stack, rewrite: {focus: Some(Value(VBinop(bop))), valCtxs}}]})
 
+    /* evaluate binop call */
+    /* TODO: feels like it should be an evaluation context or smth instead of shadowing every expression with a value */
+    |      {program, frames: [{stack, rewrite: {focus: Some(Value(VBinopCall(VInt(v1), Plus, VInt(v2)))), valCtxs}}]} =>
+      Some({program, frames: [{stack, rewrite: {focus: Some(Value(VInt(v1 + v2))), valCtxs}}]})
+
     /* focus on LHS of binop call */
     |      {program: {focus: Expr(BinopCall(e1, bop, e2)), ctxs}, frames} =>
       Some({program: {focus: Expr(e1), ctxs: [ECBinopCallL((), bop, e2), ...ctxs]}, frames})
@@ -130,10 +135,6 @@ let step = (c: configuration): option(configuration) =>
     /* focus up one level and move everything in rewrite to value position */
     |      {program: {focus: Expr(e2), ctxs: [ECBinopCallR(e1, bop, ()), ...ctxs]}, frames: [{stack, rewrite: {focus: Some(Value(v2)), valCtxs:[ECVBinopCallR(v1, vbop, ()), ...valCtxs]}}]} =>
       Some({program: {focus: Expr(BinopCallExit(e1, bop, e2)), ctxs}, frames: [{stack, rewrite: {focus: Some(Value(VBinopCall(v1, bop, v2))), valCtxs}}]})
-    /* evaluate binop call */
-    /* TODO: feels like it should be an evaluation context or smth instead of shadowing every expression with a value */
-    |      {program, frames: [{stack, rewrite: {focus: Some(Value(VBinopCall(VInt(v1), Plus, VInt(v2)))), valCtxs}}]} =>
-      Some({program, frames: [{stack, rewrite: {focus: Some(Value(VInt(v1 + v2))), valCtxs}}]})
 
     /*  */
     /* TODO: might want to use a value evalctx here to clear the focus point */
