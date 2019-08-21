@@ -136,32 +136,18 @@ let step = (c: configuration): option(configuration) =>
     |      {program: {focus: Expr(e2), ctxs: [ECBinopCallR(e1, bop, ()), ...ctxs]}, frames: [{stack, rewrite: {focus: Some(Value(v2)), valCtxs:[ECVBinopCallR(v1, vbop, ()), ...valCtxs]}}]} =>
       Some({program: {focus: Expr(BinopCallExit(e1, bop, e2)), ctxs}, frames: [{stack, rewrite: {focus: Some(Value(VBinopCall(v1, bop, v2))), valCtxs}}]})
 
-    /*  */
-    /* TODO: might want to use a value evalctx here to clear the focus point */
-    /*
-    /* add binop to rewrite section */
-    |      {program: {focus: Expr(Binop(bop)), ctxs: [ECBinopCallBOp(e1, (), e2), ...ctxs]}, frames: [{stack, rewrite: {focus: Some(Value(v1)), valCtxs:[]}}]} =>
-      Some({program: {focus: Expr(Binop(bop)), ctxs: [ECBinopCallBOp(e1, (), e2), ...ctxs]}, frames: [{stack, rewrite: {focus: Some(Binop(bop)), valCtxs:[ECVBinopCallBOp(v1, ())]}}]})
-      */
-    /*
-    /* focus on RHS of binop */
-    |      {program: {focus: Expr(Binop(bop)), ctxs: [ECBinopCallBOp(e1, (), e2), ...ctxs]}, frames: [{stack, rewrite: {focus: None, valCtxs:[ECVBinopCallR(v1, VBinop(_), ())]}}]} =>
-      Some({program: {focus: Expr(e2), ctxs: [ECBinopCallR(e1, bop, ()), ...ctxs]}, frames: [{stack, rewrite: {focus: None, valCtxs:[ECVBinopCallR(v1, VBinop(bop), ())]}}]})
-      */
-      /*
-    /* focus on RHS of binop */
-    |      {program: {focus: Expr(Binop(bop)), ctxs: [ECBinopCallBOp(e1, (), e2), ...ctxs]}, frames: [{stack, rewrite: {focus: Some(Value(VBinop(_))), valCtxs:[ECVBinopCallR(v1, ())]}}]} =>
-      Some({program: {focus: Expr(e2), ctxs: [ECBinopCallR(e1, bop, ()), ...ctxs]}, frames: [{stack, rewrite: {focus: Some(Value(VBinop(bop))), valCtxs:[ECVBinopCallR(v1, ())]}}]})
-    /* add RHS to rewrite section */
-    |      {program: {focus: Expr(e2), ctxs: [ECBinopCallR(e1, bop, ()), ...ctxs]}, frames: [{stack, rewrite: {focus: Some(Value(VBinop(_))), valCtxs:[ECVBinopCallR(v1, ())]}}]} =>
-      Some({program: {focus: Expr(e2), ctxs: [ECBinopCallR(e1, bop, ()), ...ctxs]}, frames: [{stack, rewrite: {focus: Some(e2), valCtxs:[ECVBinopCallR(v1, VBinop(bop), ())]}}]})
-    /* unfocus one level */
-    |      {program: {focus: Expr(e2), ctxs: [ECBinopCallR(e1, bop, ()), ...ctxs]}, frames: [{stack, rewrite: {focus: Some(Value(v2)), valCtxs: [ECVBinopCallR(v1, VBinop(_), ())]}}]} =>
-      Some({program: {focus: Expr(BinopCallExit(e1, bop, e2)), ctxs}, frames: [{stack, rewrite: {focus: Some(Value(v2)), valCtxs:[ECVBinopCallR(v1, VBinop(bop), ())]}}]})
-    /* do the addition! */ /* TODO: refactor binop code somehow probably */
-    |      {program: {focus: Expr(BinopCallExit(e1, bop, e2)), ctxs: ctxs}, frames: [{stack, rewrite: {focus: Some(Value(VInt(n2))), valCtxs:[ECVBinopCallR(VInt(n1), VBinop(Plus), ())]}}]} =>
-      Some({program: {focus: Expr(BinopCallExit(e1, bop, e2)), ctxs: ctxs}, frames: [{stack, rewrite: {focus: Some(Value(VInt(n1 + n2))), valCtxs:[]}}]})
-*/
+    /* push var into rewrite */
+    |      {program: {focus: Expr(Var(x)), ctxs}, frames: [{stack, rewrite: {focus: None, valCtxs}}]} =>
+      Some({program: {focus: Expr(Var(x)), ctxs}, frames: [{stack, rewrite: {focus: Some(Var(x)), valCtxs}}]})
+
+    /* var lookup */
+    /* TODO: this should be in the option monad */
+    /* TODO: maybe make lookup handle the nested options (they arise from partially filled stacks) */
+    |      {program, frames: [{stack, rewrite: {focus: Some(Var(x)) , valCtxs}}]} =>
+      switch (lookup(x, stack)) {
+        | None | Some(None) => None
+        | Some(Some(value)) => Some({program, frames: [{stack, rewrite: {focus: Some(Value(value)), valCtxs}}]})
+      }
 
     /* |      {program, frames: [{ stack, rewrite: Some({focus: Int(n), ctxs}) }]} =>
       Some({program, frames: [{ stack, rewrite: Some({focus: Value(VInt(n)), ctxs}) }]})
@@ -229,7 +215,7 @@ let step = (c: configuration): option(configuration) =>
   };
 
 let inject = (e) => {
-  {program: { focus: Expr(e), ctxs: []}, frames: [{stack: [], rewrite: {focus: None, valCtxs: []}}]}
+  {program: { focus: Expr(e), ctxs: []}, frames: [{stack: [("x", Some(VInt(32))), ("y", Some(VInt(53)))], rewrite: {focus: None, valCtxs: []}}]}
 };
 
 /* https://stackoverflow.com/a/22472610 */
