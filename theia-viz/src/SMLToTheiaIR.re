@@ -12,10 +12,12 @@ let compileBinop = (bop) =>
         | Plus => Atom(React.string("+"))
     };
 
-let compileSMLValue = (v) =>
+let rec compileSMLValue = (v) =>
   switch (v) {
     | VInt(n) => Value2([], [Atom(React.string(string_of_int(n)))])
     | VBinop(bop) => Value2([], [compileBinop(bop)])
+    /* TODO: this seems wrong? using Apply2 instead of Value2. should the middle one be smlValue? */
+    | VBinopCall(v1, bop, v2) => Apply2([<> </>, React.string(" "), React.string(" "), <> </>], [compileSMLValue(v1), compileSMLValue(VBinop(bop)), compileSMLValue(v2)])
   };
 
 /* TODO: fix the off-by-one error with linebreaks getting captured in evaluation contexts. */
@@ -53,9 +55,13 @@ let compileSMLEvalCtx = (ec) =>
     | ECValListExit(prevBindings, (), nextBindings) =>
         let ops = [React.string("val ")] @ ((1--(List.length(prevBindings) + List.length(nextBindings))) |> List.fold_left((l, _) => [<> {React.string(";")} <br /> {React.string("val ")} </>, ...l], [])) @ [React.string(";")];
         {ops, args: List.map(compileValBind, prevBindings @ nextBindings), holePos: List.length(prevBindings)}
+    /* | _ => raise(failwith("todo")) */
+  };
+
+let compileSMLValueEvalCtx = (ecv) =>
+  switch (ecv) {
     | ECVBinopCallBOp(v1, ()) => {ops: [<> </>, React.string(" "), <> </>], args: [compileSMLValue(v1)], holePos: 1}
     | ECVBinopCallR(v1, bop, ()) => {ops: [<> </>, React.string(" "), React.string(" "), <> </>], args: [compileSMLValue(v1), compileSMLValue(bop)], holePos: 2}
-    /* | _ => raise(failwith("todo")) */
   };
 
 /* turn into a Map2 of KV2's. */
@@ -66,10 +72,10 @@ let compileKVs = ((k, v)) =>
     };
 let compileStack = (s) => Map2(List.map(compileKVs, s) |> List.rev);
 
-let compileRewrite = (rw: option(rewrite)) => 
+let compileRewrite = (rw) => 
   switch (rw) {
-    | Some({focus, ctxs}) => Kont2(compileExpr(focus), List.map(compileSMLEvalCtx, ctxs));
-    | None => Atom(<> </>)
+    | {focus: None, valCtxs} => Kont2(Atom(<> </>), List.map(compileSMLValueEvalCtx, valCtxs));
+    | {focus: Some(e), valCtxs} => Kont2(compileExpr(e), List.map(compileSMLValueEvalCtx, valCtxs))
   };
 
 let compileFrame = ({stack, rewrite}) => Sequence2([compileStack(stack), compileRewrite(rewrite)]);
