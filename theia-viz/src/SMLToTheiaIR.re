@@ -7,16 +7,23 @@ open Util;
 let sorry = Atom(React.string("sorry"));
 let sorryFn = (_) => sorry;
 
+let compileBinop = (bop) =>
+    switch (bop) {
+        | Plus => Atom(React.string("+"))
+    };
+
 let compileSMLValue = (v) =>
   switch (v) {
     | VInt(n) => Value2([], [Atom(React.string(string_of_int(n)))])
+    | VBinop(bop) => Value2([], [compileBinop(bop)])
   };
 
 /* TODO: fix the off-by-one error with linebreaks getting captured in evaluation contexts. */
 let rec compileExpr = (ast) =>
   switch (ast) {
     | Int(n) => Atom(React.string(string_of_int(n)))
-    | Plus(e1, e2) => Apply2([<> </>, React.string(" + "), <> </>], List.map(compileExpr, [e1, e2]))
+    | BinopCall(e1, bop, e2) => Apply2([<> </>, React.string(" "), React.string(" "), <> </>], [compileExpr(e1), compileBinop(bop), compileExpr(e2)])
+    | BinopCallExit(e1, bop, e2) => Apply2([<> </>, React.string(" "), React.string(" "), <> </>], [compileExpr(e1), compileBinop(bop), compileExpr(e2)])
     | Var(x) => Atom(React.string(x))
     | Value(v) => compileSMLValue(v)
     /* TODO: don't use sequences */
@@ -24,6 +31,7 @@ let rec compileExpr = (ast) =>
     | ValList(bindings) => 
         let ops = [React.string("val ")] @ ((1--(List.length(bindings) - 1)) |> List.fold_left((l, _) => [<> {React.string(";")} <br /> {React.string("val ")} </>, ...l], [])) @ [React.string(";")];
         Apply2(ops, List.map(compileValBind, bindings))
+    | Binop(bop) => compileBinop(bop)
     /* | _ => raise(failwith("unimplemented SML AST compile to TheiaIR")) */
   }
 and compileValBind = (vb) =>
@@ -34,8 +42,9 @@ and compileValBind = (vb) =>
 /* {ops: list(string), args: list(theiaIR), holePos: int} */
 let compileSMLEvalCtx = (ec) =>
   switch (ec) {
-    | ECPlusL((), e2) => {ops: [<> </>, React.string(" + "), <> </>], args: [compileExpr(e2)], holePos: 0}
-    | ECPlusR(v1, ()) => {ops: [<> </>, React.string(" + "), <> </>], args: [compileSMLValue(v1)], holePos: 1}
+    | ECBinopCallL((), bop, e2) => {ops: [<> </>, React.string(" "), React.string(" "), <> </>], args: [compileBinop(bop), compileExpr(e2)], holePos: 0}
+    | ECBinopCallBOp(e1, (), e2) => {ops: [<> </>, React.string(" "), React.string(" "), <> </>], args: [compileExpr(e1), compileExpr(e2)], holePos: 1}
+    | ECBinopCallR(e1, bop, ()) => {ops: [<> </>, React.string(" "), React.string(" "), <> </>], args: [compileExpr(e1), compileBinop(bop)], holePos: 2}
     | ECValBindVar((), e) => {ops: [<> </>, React.string(" = "), <> </>], args: [compileExpr(e)], holePos: 0}
     | ECValBindExpr(x, ()) => {ops: [<> </>, React.string(" = "), <> </>], args: [Atom(React.string(x))], holePos: 1}
     | ECValListEnter(prevBindings, (), nextBindings) =>
@@ -44,6 +53,8 @@ let compileSMLEvalCtx = (ec) =>
     | ECValListExit(prevBindings, (), nextBindings) =>
         let ops = [React.string("val ")] @ ((1--(List.length(prevBindings) + List.length(nextBindings))) |> List.fold_left((l, _) => [<> {React.string(";")} <br /> {React.string("val ")} </>, ...l], [])) @ [React.string(";")];
         {ops, args: List.map(compileValBind, prevBindings @ nextBindings), holePos: List.length(prevBindings)}
+    | ECVBinopCallBOp(v1, ()) => {ops: [<> </>, React.string(" "), <> </>], args: [compileSMLValue(v1)], holePos: 1}
+    | ECVBinopCallR(v1, bop, ()) => {ops: [<> </>, React.string(" "), React.string(" "), <> </>], args: [compileSMLValue(v1), compileSMLValue(bop)], holePos: 2}
     /* | _ => raise(failwith("todo")) */
   };
 

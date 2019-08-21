@@ -1,4 +1,5 @@
 /* Building up a very wrong, very simplistic SML interpreter. Grammar is not correct. */
+/* This time we're letting the program section do ALL the traversal and the rewrite do ALL the computation. */
 /* - grammar reference: https://people.mpi-sws.org/~rossberg/sml.html */
 /* TODO:
     - fix parentheses
@@ -11,47 +12,59 @@
 /* TODO: figure out how to do monads in reason/ocaml. there's some ppx stuff. */
 
 /* TODO: highlight code blocks, too? Might be useful for nested let expressions. */
+type hole = unit;
+
+type binop =
+  | Plus;
 
 type smlValue =
-  | VInt(int);
+  | VInt(int)
+  | VBinop(binop) /* first class values ofc */
+  | VBinopCall(smlValue, binop, smlValue) /* TODO: just a normal call? */;
 
 type expr =
   | Int(int)
-  | Plus(expr, expr)
+  | Binop(binop)
+  | BinopCall(expr, binop, expr)
   | Var(string)
   | ValList(list(valBind))
   /* needed for evaluation. shouldn't be produced by parser.
      allows us to write intermediate terms where subexpressions are already values. */
   | Value(smlValue)
+  | BinopCallExit(expr, binop, expr)
 and valBind =
   | ValBind(string, expr);
 
-type hole = unit;
-
 type smlEvalCtx =
-  | ECPlusL(hole, expr)
-  | ECPlusR(smlValue, hole)
+  | ECBinopCallBOp(expr, hole, expr)
+  | ECBinopCallL(hole, binop, expr)
+  | ECBinopCallR(expr, binop, hole)
   | ECValBindVar(hole, expr)
   | ECValBindExpr(string, hole)
   | ECValListEnter(list(valBind), hole, list(valBind)) /* stores VBs before and after */
-  | ECValListExit(list(valBind), hole, list(valBind)) /* stores VBs before and after */;
+  | ECValListExit(list(valBind), hole, list(valBind)) /* stores VBs before and after */
+
+  /* TODO: these really probably shouldn't go here. The highlighting looks wrong and they are used in a different cell altogether */
+  | ECVBinopCallBOp(smlValue, hole)
+  | ECVBinopCallR(smlValue, smlValue, hole); /* the middle can only be a binop value */
 
 type grammar =
   | Expr(expr)
   | VB(valBind);
 
 let ex0 = Int(5);
-let ex1 = Plus(Int(5), Int(5));
-let ex2 = Plus(Int(1), Plus(Int(2), Int(3)));
-let ex3 = Plus(Plus(Int(2), Int(3)), Int(1));
-let ex4 = Plus(Var("x"), Int(2));
-let ex5 = Plus(Var("x"), Var("y"));
+let ex1 = BinopCall(Int(5), Plus, Int(5));
+/* TODO: this gets stuck!!! */
+let ex2 = BinopCall(Int(1), Plus, BinopCall(Int(2), Plus, Int(3)));
+let ex3 = BinopCall(BinopCall(Int(2), Plus, Int(3)), Plus, Int(1));
+let ex4 = BinopCall(Var("x"), Plus, Int(2));
+let ex5 = BinopCall(Var("x"), Plus, Var("y"));
 let ex6 = ValList([ValBind("x", Int(34))]);
 
 /* A prefix of "My first ML program" from lecture 1. */
 let exLec1 = ValList([ValBind("x", Int(34)),
                    ValBind("y", Int(17)),
-                   ValBind("z", Plus(Plus(Var("x"), Var("y")), Plus(Var("y"), Int(2))))]);
+                   ValBind("z", BinopCall(BinopCall(Var("x"), Plus, Var("y")), Plus, BinopCall(Var("y"), Plus, Int(2))))]);
 
 let exLec0 = ValList([ValBind("x", Int(34)),
                       ValBind("y", Int(17)),
@@ -59,8 +72,8 @@ let exLec0 = ValList([ValBind("x", Int(34)),
 
 let exLec2 = ValList([ValBind("x", Int(34)),
                    ValBind("y", Int(17)),
-                   ValBind("z", Plus(Plus(Var("x"), Var("y")), Plus(Var("y"), Int(2)))),
-                   ValBind("q", Plus(Var("z"), Int(1)))]);
+                   ValBind("z", BinopCall(BinopCall(Var("x"), Plus, Var("y")), Plus, BinopCall(Var("y"), Plus, Int(2)))),
+                   ValBind("q", BinopCall(Var("z"), Plus, Int(1)))]);
 
 /* Configuration (i.e. AM state description) */
 /* TODO: separate progam and rewrite grammars?  */
@@ -86,7 +99,41 @@ let rec lookup = (key, stack) =>
 let step = (c: configuration): option(configuration) =>
   switch (c) {
     /* rewrite int */
-    |      {program, frames: [{ stack, rewrite: Some({focus: Int(n), ctxs}) }]} =>
+
+    /* push int into rewrite (probably wrong) */
+    |      {program: {focus: Expr(Int(n)), ctxs}, frames: [{stack, rewrite: None}]} =>
+      Some({program: {focus: Expr(Int(n)), ctxs}, frames: [{stack, rewrite: Some({focus: Int(n), ctxs: []})}]})
+    
+    /* evaluate int */
+    |      {program, frames: [{stack, rewrite: Some({focus: Int(n), ctxs})}]} =>
+      Some({program, frames: [{stack, rewrite: Some({focus: Value(VInt(n)), ctxs})}]})
+
+    /* focus on LHS of binop */
+    |      {program: {focus: Expr(BinopCall(e1, bop, e2)), ctxs}, frames} =>
+      Some({program: {focus: Expr(e1), ctxs: [ECBinopCallL((), bop, e2), ...ctxs]}, frames})
+    /* focus on binop in program */
+    /* TODO: don't skip moving up on the refocus. just doing it for now, because it's easier to avoid ambiguity */
+    |      {program: {focus: Expr(e1), ctxs: [ECBinopCallL((), bop, e2), ...ctxs]}, frames: [{stack, rewrite: Some({focus: Value(v1), ctxs:[]})}]} =>
+      Some({program: {focus: Expr(Binop(bop)), ctxs: [ECBinopCallBOp(e1, (), e2), ...ctxs]}, frames: [{stack, rewrite: Some({focus: Value(v1), ctxs:[]})}]})
+    /* add binop to rewrite section */
+    |      {program: {focus: Expr(Binop(bop)), ctxs: [ECBinopCallBOp(e1, (), e2), ...ctxs]}, frames: [{stack, rewrite: Some({focus: Value(v1), ctxs:[]})}]} =>
+      Some({program: {focus: Expr(Binop(bop)), ctxs: [ECBinopCallBOp(e1, (), e2), ...ctxs]}, frames: [{stack, rewrite: Some({focus: Binop(bop), ctxs:[ECVBinopCallBOp(v1, ())]})}]})
+    /* convert binop to value */
+    |      {program: {focus: Expr(Binop(bop)), ctxs: [ECBinopCallBOp(e1, (), e2), ...ctxs]}, frames: [{stack, rewrite: Some({focus: Binop(_), ctxs:[ECVBinopCallBOp(v1, ())]})}]} =>
+      Some({program: {focus: Expr(Binop(bop)), ctxs: [ECBinopCallBOp(e1, (), e2), ...ctxs]}, frames: [{stack, rewrite: Some({focus: Value(VBinop(bop)), ctxs:[ECVBinopCallBOp(v1, ())]})}]})
+    /* focus on RHS of binop */
+    |      {program: {focus: Expr(Binop(bop)), ctxs: [ECBinopCallBOp(e1, (), e2), ...ctxs]}, frames: [{stack, rewrite: Some({focus: Value(VBinop(_)), ctxs:[ECVBinopCallBOp(v1, ())]})}]} =>
+      Some({program: {focus: Expr(e2), ctxs: [ECBinopCallR(e1, bop, ()), ...ctxs]}, frames: [{stack, rewrite: Some({focus: Value(VBinop(bop)), ctxs:[ECVBinopCallBOp(v1, ())]})}]})
+    /* add RHS to rewrite section */
+    |      {program: {focus: Expr(e2), ctxs: [ECBinopCallR(e1, bop, ()), ...ctxs]}, frames: [{stack, rewrite: Some({focus: Value(VBinop(_)), ctxs:[ECVBinopCallBOp(v1, ())]})}]} =>
+      Some({program: {focus: Expr(e2), ctxs: [ECBinopCallR(e1, bop, ()), ...ctxs]}, frames: [{stack, rewrite: Some({focus: e2, ctxs:[ECVBinopCallR(v1, VBinop(bop), ())]})}]})
+    /* unfocus one level */
+    |      {program: {focus: Expr(e2), ctxs: [ECBinopCallR(e1, bop, ()), ...ctxs]}, frames: [{stack, rewrite: Some({focus: Value(v2), ctxs: [ECVBinopCallR(v1, VBinop(_), ())]})}]} =>
+      Some({program: {focus: Expr(BinopCallExit(e1, bop, e2)), ctxs}, frames: [{stack, rewrite: Some({focus: Value(v2), ctxs:[ECVBinopCallR(v1, VBinop(bop), ())]})}]})
+    /* do the addition! */ /* TODO: refactor binop code somehow probably */
+    |      {program: {focus: Expr(BinopCallExit(e1, bop, e2)), ctxs: ctxs}, frames: [{stack, rewrite: Some({focus: Value(VInt(n2)), ctxs:[ECVBinopCallR(VInt(n1), VBinop(Plus), ())]})}]} =>
+      Some({program: {focus: Expr(BinopCallExit(e1, bop, e2)), ctxs: ctxs}, frames: [{stack, rewrite: Some({focus: Value(VInt(n1 + n2)), ctxs:[]})}]})
+    /* |      {program, frames: [{ stack, rewrite: Some({focus: Int(n), ctxs}) }]} =>
       Some({program, frames: [{ stack, rewrite: Some({focus: Value(VInt(n)), ctxs}) }]})
 
     /* rewrite + */
@@ -105,8 +152,8 @@ let step = (c: configuration): option(configuration) =>
       Some({program, frames: [{stack, rewrite: Some({focus: Plus(Value(v1), e2), ctxs: ctxs'})}]})
     /*- 1t. Focus on LHS. */
     |      {program, frames: [{stack, rewrite: Some({focus: Plus(e1, e2), ctxs})}]} =>
-      Some({program, frames: [{stack, rewrite: Some({focus: e1, ctxs: [ECPlusL((), e2), ...ctxs]})}]})
-
+      Some({program, frames: [{stack, rewrite: Some({focus: e1, ctxs: [ECPlusL((), e2), ...ctxs]})}]}) */
+/* 
     /* val list */
     /*- 10t. Leave val list.  */
     |      {program: {focus: VB(ValBind(x1, e1)), ctxs: [ECValListExit(prevB, (), []), ...ctxs]}, frames: [{stack: [(_, Some(v1)), ...stack], rewrite: None}]} =>
@@ -147,12 +194,12 @@ let step = (c: configuration): option(configuration) =>
       switch (lookup(x, stack)) {
         | None | Some(None) => None
         | Some(Some(value)) => Some({program, frames: [{stack, rewrite: Some({focus: Value(value), ctxs})}]})
-      }
+      } */
     | _ => None
   };
 
 let inject = (e) => {
-  {program: { focus: Expr(e), ctxs: []}, frames: []}
+  {program: { focus: Expr(e), ctxs: []}, frames: [{stack: [], rewrite: None}]}
 };
 
 /* https://stackoverflow.com/a/22472610 */
