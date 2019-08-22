@@ -7,6 +7,8 @@
     - fix parentheses
     - if-then-else
     - functions
+      - how to represent closures?
+      - how to do pointers to functions in the code segment? need some way of accessing random parts of the AST that have been tagged as function entry points and then visualize that somehow
     - implement val binding
         - with nested lets creating a sequence of frames
     - implement low-level CCC variable lookup. will also give some indication of how to skip steps intelligently
@@ -92,7 +94,7 @@ type rewrite = { focus: option(expr), valCtxs: list(smlValueEvalCtx) };
 type frame = { stack, rewrite }
 /* TODO: remove the option here! */
 type program = { focus: grammar, ctxs: list(smlEvalCtx) };
-type configuration = { program, frames: list(frame) };
+type configuration = { program, frames: list(frame), savedEnvs: list(stack) };
 
 let rec lookup = (key, stack) =>
   switch (stack) {
@@ -102,147 +104,84 @@ let rec lookup = (key, stack) =>
 
 let step = (c: configuration): option(configuration) =>
   switch (c) {
-    /* rewrite int */
-
+    /* int */
     /* push int into rewrite */
-    |      {program: {focus: Expr(Int(n)), ctxs}, frames: [{stack, rewrite: {focus: None, valCtxs}}]} =>
-      Some({program: {focus: Expr(Int(n)), ctxs}, frames: [{stack, rewrite: {focus: Some(Int(n)), valCtxs}}]})
+    |      {program: {focus: Expr(Int(n)), ctxs}, frames: [{stack, rewrite: {focus: None, valCtxs}}], savedEnvs} =>
+      Some({program: {focus: Expr(Int(n)), ctxs}, frames: [{stack, rewrite: {focus: Some(Int(n)), valCtxs}}], savedEnvs})
 
     /* evaluate int */
-    |      {program, frames: [{stack, rewrite: {focus: Some(Int(n)), valCtxs}}]} =>
-      Some({program, frames: [{stack, rewrite: {focus: Some(Value(VInt(n))), valCtxs}}]})
+    |      {program, frames: [{stack, rewrite: {focus: Some(Int(n)), valCtxs}}], savedEnvs} =>
+      Some({program, frames: [{stack, rewrite: {focus: Some(Value(VInt(n))), valCtxs}}], savedEnvs})
 
+    /* binop */
     /* push binop into rewrite */
-    |      {program: {focus: Expr(Binop(bop)), ctxs}, frames: [{stack, rewrite: {focus: None, valCtxs}}]} =>
-      Some({program: {focus: Expr(Binop(bop)), ctxs}, frames: [{stack, rewrite: {focus: Some(Binop(bop)), valCtxs}}]})
+    |      {program: {focus: Expr(Binop(bop)), ctxs}, frames: [{stack, rewrite: {focus: None, valCtxs}}], savedEnvs} =>
+      Some({program: {focus: Expr(Binop(bop)), ctxs}, frames: [{stack, rewrite: {focus: Some(Binop(bop)), valCtxs}}], savedEnvs})
 
     /* evaluate binop */
-    |      {program, frames: [{stack, rewrite: {focus: Some(Binop(bop)), valCtxs}}]} =>
-      Some({program, frames: [{stack, rewrite: {focus: Some(Value(VBinop(bop))), valCtxs}}]})
+    |      {program, frames: [{stack, rewrite: {focus: Some(Binop(bop)), valCtxs}}], savedEnvs} =>
+      Some({program, frames: [{stack, rewrite: {focus: Some(Value(VBinop(bop))), valCtxs}}], savedEnvs})
 
     /* evaluate binop call */
     /* TODO: feels like it should be an evaluation context or smth instead of shadowing every expression with a value */
-    |      {program, frames: [{stack, rewrite: {focus: Some(Value(VBinopCall(VInt(v1), Plus, VInt(v2)))), valCtxs}}]} =>
-      Some({program, frames: [{stack, rewrite: {focus: Some(Value(VInt(v1 + v2))), valCtxs}}]})
+    |      {program, frames: [{stack, rewrite: {focus: Some(Value(VBinopCall(VInt(v1), Plus, VInt(v2)))), valCtxs}}], savedEnvs} =>
+      Some({program, frames: [{stack, rewrite: {focus: Some(Value(VInt(v1 + v2))), valCtxs}}], savedEnvs})
 
     /* focus on LHS of binop call */
-    |      {program: {focus: Expr(BinopCall(e1, bop, e2)), ctxs}, frames} =>
-      Some({program: {focus: Expr(e1), ctxs: [ECBinopCallL((), bop, e2), ...ctxs]}, frames})
+    |      {program: {focus: Expr(BinopCall(e1, bop, e2)), ctxs}, frames, savedEnvs} =>
+      Some({program: {focus: Expr(e1), ctxs: [ECBinopCallL((), bop, e2), ...ctxs]}, frames, savedEnvs})
     /* focus on binop in binop call */
     /* TODO: don't skip moving up on the refocus. just doing it for now, because it's easier to avoid ambiguity */
-    |      {program: {focus: Expr(e1), ctxs: [ECBinopCallL((), bop, e2), ...ctxs]}, frames: [{stack, rewrite: {focus: Some(Value(v1)), valCtxs}}]} =>
-      Some({program: {focus: Expr(Binop(bop)), ctxs: [ECBinopCallBOp(e1, (), e2), ...ctxs]}, frames: [{stack, rewrite: {focus: None, valCtxs:[ECVBinopCallBOp(v1, ()), ...valCtxs]}}]})
+    |      {program: {focus: Expr(e1), ctxs: [ECBinopCallL((), bop, e2), ...ctxs]}, frames: [{stack, rewrite: {focus: Some(Value(v1)), valCtxs}}], savedEnvs} =>
+      Some({program: {focus: Expr(Binop(bop)), ctxs: [ECBinopCallBOp(e1, (), e2), ...ctxs]}, frames: [{stack, rewrite: {focus: None, valCtxs:[ECVBinopCallBOp(v1, ()), ...valCtxs]}}], savedEnvs})
     /* focus on RHS of binop call */
-    |      {program: {focus: Expr(Binop(bop)), ctxs: [ECBinopCallBOp(e1, (), e2), ...ctxs]}, frames: [{stack, rewrite: {focus: Some(Value(vbop)), valCtxs:[ECVBinopCallBOp(v1, ()), ...valCtxs]}}]} =>
-      Some({program: {focus: Expr(e2), ctxs: [ECBinopCallR(e1, bop, ()), ...ctxs]}, frames: [{stack, rewrite: {focus: None, valCtxs:[ECVBinopCallR(v1, vbop, ()), ...valCtxs]}}]})
+    |      {program: {focus: Expr(Binop(bop)), ctxs: [ECBinopCallBOp(e1, (), e2), ...ctxs]}, frames: [{stack, rewrite: {focus: Some(Value(vbop)), valCtxs:[ECVBinopCallBOp(v1, ()), ...valCtxs]}}], savedEnvs} =>
+      Some({program: {focus: Expr(e2), ctxs: [ECBinopCallR(e1, bop, ()), ...ctxs]}, frames: [{stack, rewrite: {focus: None, valCtxs:[ECVBinopCallR(v1, vbop, ()), ...valCtxs]}}], savedEnvs})
     /* focus up one level and move everything in rewrite to value position */
-    |      {program: {focus: Expr(e2), ctxs: [ECBinopCallR(e1, bop, ()), ...ctxs]}, frames: [{stack, rewrite: {focus: Some(Value(v2)), valCtxs:[ECVBinopCallR(v1, vbop, ()), ...valCtxs]}}]} =>
-      Some({program: {focus: Expr(BinopCallExit(e1, bop, e2)), ctxs}, frames: [{stack, rewrite: {focus: Some(Value(VBinopCall(v1, bop, v2))), valCtxs}}]})
+    |      {program: {focus: Expr(e2), ctxs: [ECBinopCallR(e1, bop, ()), ...ctxs]}, frames: [{stack, rewrite: {focus: Some(Value(v2)), valCtxs:[ECVBinopCallR(v1, vbop, ()), ...valCtxs]}}], savedEnvs} =>
+      Some({program: {focus: Expr(BinopCallExit(e1, bop, e2)), ctxs}, frames: [{stack, rewrite: {focus: Some(Value(VBinopCall(v1, bop, v2))), valCtxs}}], savedEnvs})
 
     /* val bindings */
     /* focus on first binding */
-    |      {program: {focus: Expr(ValList([ValBind(x, e), ...bindings])), ctxs}, frames} =>
-      Some({program: {focus: VB(ValBind(x, e)), ctxs: [ECValListEnter([], (), bindings), ...ctxs]}, frames})
+    |      {program: {focus: Expr(ValList([ValBind(x, e), ...bindings])), ctxs}, frames, savedEnvs} =>
+      Some({program: {focus: VB(ValBind(x, e)), ctxs: [ECValListEnter([], (), bindings), ...ctxs]}, frames, savedEnvs})
     /* focus on variable */
-    |      {program: {focus: VB(ValBind(x, e)), ctxs: [ECValListEnter(prevB, (), nextB), ...ctxs]}, frames} =>
-      Some({program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ECValListEnter(prevB, (), nextB), ...ctxs]}, frames})
+    |      {program: {focus: VB(ValBind(x, e)), ctxs: [ECValListEnter(prevB, (), nextB), ...ctxs]}, frames, savedEnvs} =>
+      Some({program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ECValListEnter(prevB, (), nextB), ...ctxs]}, frames, savedEnvs})
     /* TODO: I think I can avoid this doubling up of rules by using evaluation contexts for the stack, too */
     /* push variable on stack and focus on subexpression */
-    |      {program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ...ctxs]}, frames: [{stack, rewrite}]} =>
-      Some({program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ...ctxs]}, frames: [{stack: [(x, None), ...stack], rewrite}]})
+    |      {program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ...ctxs]}, frames: [{stack, rewrite}], savedEnvs} =>
+      Some({program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ...ctxs]}, frames: [{stack: [(x, None), ...stack], rewrite}], savedEnvs})
     /* push value onto stack */
-    |      {program: {focus: Expr(e), ctxs: [ECValBindExpr(_, ()), ...ctxs]}, frames: [{stack: [(x, None), ...stack], rewrite: {focus: Some(Value(v)), valCtxs: []}}]} =>
-      Some({program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ...ctxs]}, frames: [{stack: [(x, Some(v)), ...stack], rewrite: {focus: Some(Value(v)), valCtxs: []}}]})
+    |      {program: {focus: Expr(e), ctxs: [ECValBindExpr(_, ()), ...ctxs]}, frames: [{stack: [(x, None), ...stack], rewrite: {focus: Some(Value(v)), valCtxs: []}}], savedEnvs} =>
+      Some({program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ...ctxs]}, frames: [{stack: [(x, Some(v)), ...stack], rewrite: {focus: Some(Value(v)), valCtxs: []}}], savedEnvs})
     /* move up a level and clear rw */
-    |      {program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValListEnter(prevB, (), nextB), ...ctxs]}, frames: [{stack: [(_, Some(v)), ...stack], rewrite: {focus: Some(Value(_)), valCtxs: []}}]} =>
-      Some({program: {focus: VB(ValBind(x, e)), ctxs: [ECValListExit(prevB, (), nextB), ...ctxs]}, frames: [{stack: [(x, Some(v)), ...stack], rewrite: {focus: None, valCtxs: []}}]})
+    |      {program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValListEnter(prevB, (), nextB), ...ctxs]}, frames: [{stack: [(_, Some(v)), ...stack], rewrite: {focus: Some(Value(_)), valCtxs: []}}], savedEnvs} =>
+      Some({program: {focus: VB(ValBind(x, e)), ctxs: [ECValListExit(prevB, (), nextB), ...ctxs]}, frames: [{stack: [(x, Some(v)), ...stack], rewrite: {focus: None, valCtxs: []}}], savedEnvs})
     /* we're at the last binding. stop! */
-    |      {program: {focus: VB(vb), ctxs: [ECValListExit(prevB, (), []), ...ctxs]}, frames: [{stack, rewrite}]} =>
-      Some({program: {focus: Expr(ValListExit(prevB @ [vb])), ctxs}, frames: [{stack, rewrite}]})
+    |      {program: {focus: VB(vb), ctxs: [ECValListExit(prevB, (), []), ...ctxs]}, frames: [{stack, rewrite}], savedEnvs} =>
+      Some({program: {focus: Expr(ValListExit(prevB @ [vb])), ctxs}, frames: [{stack, rewrite}], savedEnvs})
     /* move onto next binding */
-    |      {program: {focus: VB(vb1), ctxs: [ECValListExit(prevB, (), [vb2, ...nextB]), ...ctxs]}, frames: [{stack, rewrite}]} =>
-      Some({program: {focus: VB(vb2), ctxs: [ECValListEnter(prevB @ [vb1], (), nextB), ...ctxs]}, frames: [{stack, rewrite}]})
+    |      {program: {focus: VB(vb1), ctxs: [ECValListExit(prevB, (), [vb2, ...nextB]), ...ctxs]}, frames: [{stack, rewrite}], savedEnvs} =>
+      Some({program: {focus: VB(vb2), ctxs: [ECValListEnter(prevB @ [vb1], (), nextB), ...ctxs]}, frames: [{stack, rewrite}], savedEnvs})
 
     /* push var into rewrite */
-    |      {program: {focus: Expr(Var(x)), ctxs}, frames: [{stack, rewrite: {focus: None, valCtxs}}]} =>
-      Some({program: {focus: Expr(Var(x)), ctxs}, frames: [{stack, rewrite: {focus: Some(Var(x)), valCtxs}}]})
+    |      {program: {focus: Expr(Var(x)), ctxs}, frames: [{stack, rewrite: {focus: None, valCtxs}}], savedEnvs} =>
+      Some({program: {focus: Expr(Var(x)), ctxs}, frames: [{stack, rewrite: {focus: Some(Var(x)), valCtxs}}], savedEnvs})
 
     /* var lookup */
     /* TODO: this should be in the option monad */
     /* TODO: maybe make lookup handle the nested options (they arise from partially filled stacks) */
-    |      {program, frames: [{stack, rewrite: {focus: Some(Var(x)) , valCtxs}}]} =>
+    |      {program, frames: [{stack, rewrite: {focus: Some(Var(x)) , valCtxs}}], savedEnvs} =>
       switch (lookup(x, stack)) {
         | None | Some(None) => None
-        | Some(Some(value)) => Some({program, frames: [{stack, rewrite: {focus: Some(Value(value)), valCtxs}}]})
+        | Some(Some(value)) => Some({program, frames: [{stack, rewrite: {focus: Some(Value(value)), valCtxs}}], savedEnvs})
       }
-
-    /* |      {program, frames: [{ stack, rewrite: Some({focus: Int(n), ctxs}) }]} =>
-      Some({program, frames: [{ stack, rewrite: Some({focus: Value(VInt(n)), ctxs}) }]})
-
-    /* rewrite + */
-    /* written in reverse b/c some patterns fight with each other for precedence, but not in this order. */
-    /*- 5e. Evaluate +. */
-    |      {program, frames: [{stack, rewrite: Some({focus: Plus(Value(VInt(v1)), Value(VInt(v2))), ctxs})}]} =>
-      Some({program, frames: [{stack, rewrite: Some({focus: Value(VInt(v1 + v2)), ctxs})}]})
-    /*- 4t. Focus on + after evaluating RHS. */
-    |      {program, frames: [{stack, rewrite: Some({focus: Value(v2), ctxs: [ECPlusR(v1, ()), ...ctxs']})}]} =>
-      Some({program, frames: [{stack, rewrite: Some({focus: Plus(Value(v1), Value(v2)), ctxs: ctxs'})}]})
-    /*- 3t. Focus on RHS. */
-    |      {program, frames: [{stack, rewrite: Some({focus: Plus(Value(v1), e2), ctxs})}]} =>
-      Some({program, frames: [{stack, rewrite: Some({focus: e2, ctxs: [ECPlusR(v1, ()), ...ctxs]})}]})
-    /*- 2t. Focus on + after evaluating LHS. */
-    |      {program, frames: [{stack, rewrite: Some({focus: Value(v1), ctxs: [ECPlusL((), e2), ...ctxs']})}]} =>
-      Some({program, frames: [{stack, rewrite: Some({focus: Plus(Value(v1), e2), ctxs: ctxs'})}]})
-    /*- 1t. Focus on LHS. */
-    |      {program, frames: [{stack, rewrite: Some({focus: Plus(e1, e2), ctxs})}]} =>
-      Some({program, frames: [{stack, rewrite: Some({focus: e1, ctxs: [ECPlusL((), e2), ...ctxs]})}]}) */
-/* 
-    /* val list */
-    /*- 10t. Leave val list.  */
-    |      {program: {focus: VB(ValBind(x1, e1)), ctxs: [ECValListExit(prevB, (), []), ...ctxs]}, frames: [{stack: [(_, Some(v1)), ...stack], rewrite: None}]} =>
-      Some({program: {focus: Expr(ValList(prevB @ [ValBind(x1, e1)])), ctxs}, frames: [{stack: [(x1, Some(v1)), ...stack], rewrite: None}]})
-    /*- 9t. Focus on the next binding. */
-    |      {program: {focus: VB(ValBind(x1, e1)), ctxs: [ECValListExit(prevB, (), [ValBind(x2, e2), ...bindings]), ...ctxs]}, frames: [{stack: [(_, Some(v1)), ...stack], rewrite: None}]} =>
-      Some({program: {focus: VB(ValBind(x2, e2)), ctxs: [ECValListEnter(prevB @ [ValBind(x1, e1)], (), bindings), ...ctxs]}, frames: [{stack: [(x1, Some(v1)), ...stack], rewrite: None}]})
-    /*- 8t. Refocus on val list. Note: Exit is used to prevent match ambiguity. */
-    |      {program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValListEnter(prevB, (), postB), ...ctxs]}, frames: [{stack: [(_, Some(v)), ...stack], rewrite: None}]} =>
-      Some({program: {focus: VB(ValBind(x, e)), ctxs: [ECValListExit(prevB, (), postB), ...ctxs]}, frames: [{stack: [(x, Some(v)), ...stack], rewrite: None}]})
-    /*- 7e. Push value onto stack. */
-    |      {program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValListEnter(prevB, (), postB), ...ctxs]}, frames: [{stack: [(_, None), ...stack], rewrite: Some({focus: Value(v), ctxs: []})}]}
-    =>
-      Some({program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValListEnter(prevB, (), postB), ...ctxs]}, frames: [{stack: [(x, Some(v)), ...stack], rewrite: None}]})
-    /*- 6e. Push the subexpression into rewrite. */
-    |      {program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValListEnter(prevB, (), postB), ...ctxs]}, frames: [{stack: [(_, None), ...stack], rewrite: None}]} =>
-      Some({program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValListEnter(prevB, (), postB), ...ctxs]}, frames: [{stack: [(x, None), ...stack], rewrite: Some({focus: e, ctxs: []})}]})
-    /*- 5t. Focus on subexpression. */
-    |      {program: {focus: VB(ValBind(x, e)), ctxs: [ECValListEnter(prevB, (), postB), ...ctxs]}, frames: [{stack: [(_, None), ...stack], rewrite: None}]} =>
-      Some({program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValListEnter(prevB, (), postB), ...ctxs]}, frames: [{stack: [(x, None), ...stack], rewrite: None}]})
-    /*- 4t. Refocus on val list. */
-    |      {program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ECValListEnter(prevB, (), postB), ...ctxs]}, frames: [{stack: [(_, None), ...stack], rewrite: None}]} =>
-      Some({program: {focus: VB(ValBind(x, e)), ctxs: [ECValListEnter(prevB, (), postB), ...ctxs]}, frames: [{stack: [(x, None), ...stack], rewrite: None}]})
-    /*- 3e. Push variable onto stack. */
-    |      {program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ...ctxs]}, frames: [{stack, rewrite: None}]} =>
-      Some({program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ...ctxs]}, frames: [{stack: [(x, None), ...stack], rewrite: None}]})
-    /*- 2t. Focus on variable. */
-    |      {program: {focus: VB(ValBind(x, e)), ctxs: [ECValListEnter(prevB, (), postB), ...ctxs]}, frames: [{stack, rewrite: None}]} =>
-      Some({program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ECValListEnter(prevB, (), postB), ...ctxs]}, frames: [{stack, rewrite: None}]})
-    /*- 1t. Focus on first binding  */
-    |      {program: {focus: Expr(ValList([ValBind(x, e), ...bindings])), ctxs}, frames: []} =>
-      Some({program: {focus: VB(ValBind(x, e)), ctxs: [ECValListEnter([], (), bindings), ...ctxs]}, frames: [{stack: [], rewrite: None}]})
-
-    /* var lookup */
-    /* TODO: this should be in the option monad */
-    /* TODO: maybe make lookup handle the nested options (they arise from partially filled stacks) */
-    |      {program, frames: [{stack, rewrite: Some({focus: Var(x) , ctxs})}]} =>
-      switch (lookup(x, stack)) {
-        | None | Some(None) => None
-        | Some(Some(value)) => Some({program, frames: [{stack, rewrite: Some({focus: Value(value), ctxs})}]})
-      } */
     | _ => None
   };
 
 let inject = (e) => {
-  {program: { focus: Expr(e), ctxs: []}, frames: [{stack: [/* ("x", Some(VInt(32))), ("y", Some(VInt(53))) */], rewrite: {focus: None, valCtxs: []}}]}
+  {program: { focus: Expr(e), ctxs: []}, frames: [{stack: [/* ("x", Some(VInt(32))), ("y", Some(VInt(53))) */], rewrite: {focus: None, valCtxs: []}}], savedEnvs: []}
 };
 
 /* https://stackoverflow.com/a/22472610 */
