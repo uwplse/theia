@@ -355,7 +355,7 @@ let make = (~theiaIRTrace: list(theiaIR)) => {
   switch (action) {
   | UpdateMachineState(s) => {trace: Some(s.k), currentConfig: 0}
   | StepBack => {...state, currentConfig: max(0, state.currentConfig - 1)}
-  | StepForward => {...state, currentConfig: min(state.currentConfig + 1, List.length(Belt_Option.getExn(state.trace)) - 1)}
+  | StepForward => {...state, currentConfig: min(state.currentConfig + 1, List.length(Belt.Option.getWithDefault(state.trace, [<> </>])) - 1)}
   }, {trace: None, currentConfig: 0});
 
   /* register keyboard events */

@@ -2,6 +2,8 @@
 /* This time we're letting the program section do ALL the traversal and the rewrite do ALL the computation. */
 /* - grammar reference: https://people.mpi-sws.org/~rossberg/sml.html */
 /* TODO:
+    - make all operations ATOMIC? only one thing at a time
+    - fix the hacky ADTs
     - fix parentheses
     - if-then-else
     - functions
@@ -31,7 +33,9 @@ type expr =
   /* needed for evaluation. shouldn't be produced by parser.
      allows us to write intermediate terms where subexpressions are already values. */
   | Value(smlValue)
+  /* used when nothing more to do. TODO: maybe better as a flag somewhere */
   | BinopCallExit(expr, binop, expr)
+  | ValListExit(list(valBind))
 and valBind =
   | ValBind(string, expr);
 
@@ -55,7 +59,6 @@ type grammar =
 
 let ex0 = Int(5);
 let ex1 = BinopCall(Int(5), Plus, Int(5));
-/* TODO: this gets stuck!!! */
 let ex2 = BinopCall(Int(1), Plus, BinopCall(Int(2), Plus, Int(3)));
 let ex3 = BinopCall(BinopCall(Int(2), Plus, Int(3)), Plus, Int(1));
 let ex4 = BinopCall(Var("x"), Plus, Int(2));
@@ -136,6 +139,30 @@ let step = (c: configuration): option(configuration) =>
     |      {program: {focus: Expr(e2), ctxs: [ECBinopCallR(e1, bop, ()), ...ctxs]}, frames: [{stack, rewrite: {focus: Some(Value(v2)), valCtxs:[ECVBinopCallR(v1, vbop, ()), ...valCtxs]}}]} =>
       Some({program: {focus: Expr(BinopCallExit(e1, bop, e2)), ctxs}, frames: [{stack, rewrite: {focus: Some(Value(VBinopCall(v1, bop, v2))), valCtxs}}]})
 
+    /* val bindings */
+    /* focus on first binding */
+    |      {program: {focus: Expr(ValList([ValBind(x, e), ...bindings])), ctxs}, frames} =>
+      Some({program: {focus: VB(ValBind(x, e)), ctxs: [ECValListEnter([], (), bindings), ...ctxs]}, frames})
+    /* focus on variable */
+    |      {program: {focus: VB(ValBind(x, e)), ctxs: [ECValListEnter(prevB, (), nextB), ...ctxs]}, frames} =>
+      Some({program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ECValListEnter(prevB, (), nextB), ...ctxs]}, frames})
+    /* TODO: I think I can avoid this doubling up of rules by using evaluation contexts for the stack, too */
+    /* push variable on stack and focus on subexpression */
+    |      {program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ...ctxs]}, frames: [{stack, rewrite}]} =>
+      Some({program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ...ctxs]}, frames: [{stack: [(x, None), ...stack], rewrite}]})
+    /* push value onto stack */
+    |      {program: {focus: Expr(e), ctxs: [ECValBindExpr(_, ()), ...ctxs]}, frames: [{stack: [(x, None), ...stack], rewrite: {focus: Some(Value(v)), valCtxs: []}}]} =>
+      Some({program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ...ctxs]}, frames: [{stack: [(x, Some(v)), ...stack], rewrite: {focus: Some(Value(v)), valCtxs: []}}]})
+    /* move up a level and clear rw */
+    |      {program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValListEnter(prevB, (), nextB), ...ctxs]}, frames: [{stack: [(_, Some(v)), ...stack], rewrite: {focus: Some(Value(_)), valCtxs: []}}]} =>
+      Some({program: {focus: VB(ValBind(x, e)), ctxs: [ECValListExit(prevB, (), nextB), ...ctxs]}, frames: [{stack: [(x, Some(v)), ...stack], rewrite: {focus: None, valCtxs: []}}]})
+    /* we're at the last binding. stop! */
+    |      {program: {focus: VB(vb), ctxs: [ECValListExit(prevB, (), []), ...ctxs]}, frames: [{stack, rewrite}]} =>
+      Some({program: {focus: Expr(ValListExit(prevB @ [vb])), ctxs}, frames: [{stack, rewrite}]})
+    /* move onto next binding */
+    |      {program: {focus: VB(vb1), ctxs: [ECValListExit(prevB, (), [vb2, ...nextB]), ...ctxs]}, frames: [{stack, rewrite}]} =>
+      Some({program: {focus: VB(vb2), ctxs: [ECValListEnter(prevB @ [vb1], (), nextB), ...ctxs]}, frames: [{stack, rewrite}]})
+
     /* push var into rewrite */
     |      {program: {focus: Expr(Var(x)), ctxs}, frames: [{stack, rewrite: {focus: None, valCtxs}}]} =>
       Some({program: {focus: Expr(Var(x)), ctxs}, frames: [{stack, rewrite: {focus: Some(Var(x)), valCtxs}}]})
@@ -215,7 +242,7 @@ let step = (c: configuration): option(configuration) =>
   };
 
 let inject = (e) => {
-  {program: { focus: Expr(e), ctxs: []}, frames: [{stack: [("x", Some(VInt(32))), ("y", Some(VInt(53)))], rewrite: {focus: None, valCtxs: []}}]}
+  {program: { focus: Expr(e), ctxs: []}, frames: [{stack: [/* ("x", Some(VInt(32))), ("y", Some(VInt(53))) */], rewrite: {focus: None, valCtxs: []}}]}
 };
 
 /* https://stackoverflow.com/a/22472610 */

@@ -28,9 +28,11 @@ let rec compileExpr = (ast) =>
     | BinopCallExit(e1, bop, e2) => Apply2([<> </>, React.string(" "), React.string(" "), <> </>], [compileExpr(e1), compileBinop(bop), compileExpr(e2)])
     | Var(x) => Atom(React.string(x))
     | Value(v) => compileSMLValue(v)
-    /* TODO: don't use sequences */
-    | ValList([vb]) => Apply2([React.string("val "), React.string(";")], [compileValBind(vb)])
     | ValList(bindings) => 
+        let ops = [React.string("val ")] @ ((1--(List.length(bindings) - 1)) |> List.fold_left((l, _) => [<> {React.string(";")} <br /> {React.string("val ")} </>, ...l], [])) @ [React.string(";")];
+        Apply2(ops, List.map(compileValBind, bindings))
+    | Binop(bop) => compileBinop(bop)
+    | ValListExit(bindings) =>
         let ops = [React.string("val ")] @ ((1--(List.length(bindings) - 1)) |> List.fold_left((l, _) => [<> {React.string(";")} <br /> {React.string("val ")} </>, ...l], [])) @ [React.string(";")];
         Apply2(ops, List.map(compileValBind, bindings))
     | Binop(bop) => compileBinop(bop)
