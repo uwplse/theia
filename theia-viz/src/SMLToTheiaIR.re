@@ -28,15 +28,18 @@ let rec compileExpr = (ast) =>
     | BinopCallExit(e1, bop, e2) => Apply2([<> </>, React.string(" "), React.string(" "), <> </>], [compileExpr(e1), compileBinop(bop), compileExpr(e2)])
     | Var(x) => Atom(React.string(x))
     | Value(v) => compileSMLValue(v)
+    | Binop(bop) => compileBinop(bop)
+    | Let(d, e) => Apply2([React.string("let "), React.string(" in "), React.string(" end")], [compileDec(d), compileExpr(e)])
+    /* | _ => raise(failwith("unimplemented SML AST compile to TheiaIR")) */
+  }
+and compileDec = (dec) =>
+  switch (dec) {
     | ValList(bindings) => 
         let ops = [React.string("val ")] @ ((1--(List.length(bindings) - 1)) |> List.fold_left((l, _) => [<> {React.string(";")} <br /> {React.string("val ")} </>, ...l], [])) @ [React.string(";")];
         Apply2(ops, List.map(compileValBind, bindings))
-    | Binop(bop) => compileBinop(bop)
     | ValListExit(bindings) =>
         let ops = [React.string("val ")] @ ((1--(List.length(bindings) - 1)) |> List.fold_left((l, _) => [<> {React.string(";")} <br /> {React.string("val ")} </>, ...l], [])) @ [React.string(";")];
         Apply2(ops, List.map(compileValBind, bindings))
-    | Binop(bop) => compileBinop(bop)
-    /* | _ => raise(failwith("unimplemented SML AST compile to TheiaIR")) */
   }
 and compileValBind = (vb) =>
     switch (vb) {
@@ -49,6 +52,8 @@ let compileSMLEvalCtx = (ec) =>
     | ECBinopCallL((), bop, e2) => {ops: [<> </>, React.string(" "), React.string(" "), <> </>], args: [compileBinop(bop), compileExpr(e2)], holePos: 0}
     | ECBinopCallBOp(e1, (), e2) => {ops: [<> </>, React.string(" "), React.string(" "), <> </>], args: [compileExpr(e1), compileExpr(e2)], holePos: 1}
     | ECBinopCallR(e1, bop, ()) => {ops: [<> </>, React.string(" "), React.string(" "), <> </>], args: [compileExpr(e1), compileBinop(bop)], holePos: 2}
+    | ECLetDec((), e) => {ops: [React.string("let "), React.string(" in "), React.string(" end")], args: [compileExpr(e)], holePos: 0}
+    | ECLetExpr(d, ()) => {ops: [React.string("let "), React.string(" in "), React.string(" end")], args: [compileDec(d)], holePos: 1}
     | ECValBindVar((), e) => {ops: [<> </>, React.string(" = "), <> </>], args: [compileExpr(e)], holePos: 0}
     | ECValBindExpr(x, ()) => {ops: [<> </>, React.string(" = "), <> </>], args: [Atom(React.string(x))], holePos: 1}
     | ECValListEnter(prevBindings, (), nextBindings) =>
@@ -85,6 +90,7 @@ let compileFrame = ({stack, rewrite}) => Sequence2([compileStack(stack), compile
 let compileGrammar = (g) =>
     switch (g) {
         | Expr(e) => compileExpr(e)
+        | Dec(d) => compileDec(d)
         | VB(vb) => compileValBind(vb)
     };
 
