@@ -85,7 +85,7 @@ let compileRewrite = (rw) =>
     | {focus: Some(e), valCtxs} => Kont2(compileExpr(e), List.map(compileSMLValueEvalCtx, valCtxs))
   };
 
-let compileFrame = ({stack, rewrite}) => Sequence2([compileStack(stack), compileRewrite(rewrite)]);
+let compileFrame = ({stack, rewrite}) => VSequence([compileStack(stack), compileRewrite(rewrite)]);
 
 let compileGrammar = (g) =>
     switch (g) {
@@ -96,4 +96,4 @@ let compileGrammar = (g) =>
 
 let compileProgram = ({focus, ctxs}: program) => Kont2(compileGrammar(focus), List.map(compileSMLEvalCtx, ctxs))
 
-let smlToTheiaIR = ({program, frames}) => Sequence2([Cell2("program", [compileProgram(program)]), Cell2("frames", List.map(compileFrame, frames))]);
+let smlToTheiaIR = ({program, frames}) => VSequence([Cell2("program", [compileProgram(program)]), Cell2("frames", [HSequence(List.map(compileFrame, frames))])]);

@@ -79,7 +79,8 @@ type theiaIR =
   | Atom(ReasonReact.reactElement)
   | Apply2(list(ReasonReact.reactElement), list(theiaIR))
   | EvalCtx(evalCtx)
-  | Sequence2(list(theiaIR))
+  | HSequence(list(theiaIR)) /* horizontal sequencing */
+  | VSequence(list(theiaIR)) /* vertical sequencing */
   | Map2(list(theiaIR))
   | Kont2(theiaIR, list(evalCtx))
   | KV2((theiaIR, theiaIR))
@@ -93,11 +94,11 @@ let rec theiaIRDebugPrint = (k) =>
   | Apply2(ss, args) => "Apply2(" /* ++ prettyList(List.map((s) => "\"" ++ s ++ "\"", ss)) */ ++ ", " ++ prettyList(List.map(theiaIRDebugPrint, args)) ++ ")"
   | Value2(ss, args) => "Value2(" ++ prettyList(List.map((s) => "\"" ++ s ++ "\"", ss)) ++ ", " ++ prettyList(List.map(theiaIRDebugPrint, args)) ++ ")"
   | EvalCtx(f) => "EvalCtx(" ++ debugFreezer(f) ++ ")"
-  | Sequence2(l) => "Sequence2(" ++ (List.map(theiaIRDebugPrint, l) |> prettyList) ++ ")"
   | Map2(l) => "Map2(" ++ (List.map(theiaIRDebugPrint, l) |> prettyList) ++ ")"
   | Kont2(e, fs) => "Kont2(" ++ theiaIRDebugPrint(e) ++ ", " ++ (List.map(debugFreezer, fs) |> prettyList) ++ ")"
   | KV2((k, v)) => "KV2(" ++ theiaIRDebugPrint(k) ++ ", " ++ theiaIRDebugPrint(v) ++ ")"
   | Cell2(s, args) => "Cell2(" ++ s ++ ", " ++ prettyList(List.map(theiaIRDebugPrint, args)) ++ ")"
+  | _ => "TODO"
   }
 and debugEntry2 = ((k, v)) => theiaIRDebugPrint(k) ++ "->" ++ theiaIRDebugPrint(v)
 and debugFreezer = ({ops, args, holePos}) => {
@@ -109,12 +110,12 @@ let rec theiaIRDebugPrintShort = (k) =>
   | Atom(_) => "Tk"
   | Apply2(_, args) => "App(" ++ prettyList(List.map(theiaIRDebugPrintShort, args)) ++ ")"
   | EvalCtx(_) => "Fz"
-  | Sequence2(l) => "Seq(" ++ prettyList(List.map(theiaIRDebugPrintShort, l)) ++ ")"
   | Map2(_) => "Map"
   | Kont2(_) => "Kont"
   | KV2(_) => "KV"
   | Value2(_, args) => "Val(" ++ prettyList(List.map(theiaIRDebugPrintShort, args)) ++ ")"
   | Cell2(_, args) => "Cell(" ++ prettyList(List.map(theiaIRDebugPrintShort, args)) ++ ")"
+  | _ => "TODO"
   };
 
 type seqDebug =
@@ -137,57 +138,6 @@ let rec seqDebugPrint = (s) =>
   | CellS(ss) => "Cell(" ++ prettyList(List.map(seqDebugPrint, ss)) ++ ")"
   };
 
-let notIsSeq = (s) =>
-  switch (s) {
-  | Seq(_) => false
-  | _ => true
-  };
-
-let isNoSeq = (s) =>
-  switch (s) {
-  | NoSeq => true
-  | _ => false
-  }
-
-let noSeq = List.for_all(isNoSeq);
-
-let rec splitSeqAux = (l) =>
-  switch (l) {
-  | [] => [[]]
-  | [h, ...t] => {
-      let rest = splitSeqAux(t);
-      let tail = [[h, ...List.hd(rest)], ...List.tl(rest)];
-      switch (h) {
-      | EvalCtx(_) => tail
-      | _ => [[], ...tail]
-      }
-    }
-  };
-
-/* [n, n, f, f, n, f] => [[n], [n, f, f], [n, f]] */
-let splitSeq = (l) =>
-  switch (l) {
-  | [] => []
-  | l  => List.tl(splitSeqAux(l))
-  };
-
-let rec extractFreezers = (fs) =>
-  switch (fs) {
-  | [] => []
-  | [EvalCtx(f), ...t] => [f, ...extractFreezers(t)]
-  | _ => raise(CompileError("expected a freezer"))
-  };
-
-/* [[n], [n, f, f], [n, f]] => [n, kont(n, [f, f]), kont(n, [f])] */
-let convertToKont = (l: list(theiaIR)) : theiaIR =>
-  switch (l) {
-  | [] => raise(CompileError("Got an empty list in convertToKont."))
-  | [n] => n
-  | [n, ...fs] => Kont2(n, extractFreezers(fs))
-  };
-
-let convertSequence = (s) => Sequence2(s |> splitSeq |> List.map(convertToKont));
-
 /* and finally pretty printing! */
 let render_open_brack = <span style=(ReactDOMRe.Style.make(~color="blue", ()))> {ReasonReact.string("[")} </span>;
 let render_close_brack = <span style=(ReactDOMRe.Style.make(~color="blue", ()))> {ReasonReact.string("]")} </span>;
@@ -197,12 +147,11 @@ let rec kn2Pretty = (~parens=true, k) =>
   | Atom(s) => s
   | Apply2(ops, args) => Util.interleave(ops, List.map(kn2Pretty, args)) |> Util.prettierList(~parens, ~space=false)
   | EvalCtx(_) => raise(CompileError("There shouldn't be a EvalCtx!"))
-  /* | Sequence2(l) => <> {Util.interleave(List.map(kn2Pretty, l), (1--(List.length(l) - 1)) |> List.map(_ => React.string(" ~> "))) |> Util.prettierList} </> */
-  | Sequence2([kn]) => <> {kn2Pretty(~parens=false, kn)} </>
-  | Sequence2(l) => <> {List.mapi((i, kn) => <div key={string_of_int(i)} style=(ReactDOMRe.Style.make(~marginTop="10px", ()))> {kn2Pretty(~parens=false, kn)} </div>, l) /* |> List.rev */ |> Array.of_list |> React.array} </>
-  /* | Sequence2(l) => <> {kn2PrettyList(l)} </> */ /* TODO: almost right except for subexpressions that contain sequences like in callcc.
-    I think it's better to just have a list of environments than a store them in the k node. This is a semantics problem.
-    There are two ways to affect the visualization: change how individual elements are rendered or change the semantics. */
+  /* | Sequence(l) => <> {Util.interleave(List.map(kn2Pretty, l), (1--(List.length(l) - 1)) |> List.map(_ => React.string(" ~> "))) |> Util.prettierList} </> */
+  | VSequence([kn]) => <> {kn2Pretty(~parens=false, kn)} </>
+  | VSequence(l) => <> {List.mapi((i, kn) => <div key={string_of_int(i)} style=(ReactDOMRe.Style.make(~marginTop="10px", ()))> {kn2Pretty(~parens=false, kn)} </div>, l) /* |> List.rev */ |> Array.of_list |> React.array} </>
+  | HSequence([kn]) => <> {kn2Pretty(~parens=false, kn)} </>
+  | HSequence(l) => <div style=(ReactDOMRe.Style.make(~float="left", ()))> {List.mapi((i, kn) => <div key={string_of_int(i)} style=(ReactDOMRe.Style.make(~float="left", ~marginLeft="10px", ()))> {kn2Pretty(~parens=false, kn)} </div>, l) |> List.rev |> Array.of_list |> React.array} </div>
   | Map2([]) => kn2Pretty(Map2([KV2((Atom(Util.nbsp), Atom(Util.nbsp)))]))
   | Map2(l) => /* https://stackoverflow.com/a/3349181 */
       <table style=(ReactDOMRe.Style.make(~borderCollapse="collapse", ~borderStyle="hidden", ~display="inline-table", ()))>
