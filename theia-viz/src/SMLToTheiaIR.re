@@ -77,7 +77,8 @@ let compileKVs = ((k, v)) =>
         | None => KV2((Atom(React.string(k)), Atom(<> </>)))
         | Some(v) => KV2((Atom(React.string(k)), compileSMLValue(v)))
     };
-let compileStack = (s) => Map2(List.map(compileKVs, s) |> List.rev);
+let compileOneStack = (os) => Map2(List.map(compileKVs, os) |> List.rev);
+let compileStack = (s) => VSequence(List.map(compileOneStack, s) |> List.rev);
 
 let compileRewrite = (rw) => 
   switch (rw) {
@@ -96,4 +97,4 @@ let compileGrammar = (g) =>
 
 let compileProgram = ({focus, ctxs}: program) => Kont2(compileGrammar(focus), List.map(compileSMLEvalCtx, ctxs))
 
-let smlToTheiaIR = ({program, frames}) => VSequence([Cell2("program", [compileProgram(program)]), Cell2("frames", [HSequence(List.map(compileFrame, frames))])]);
+let smlToTheiaIR = ({program, frames}) => VSequence([Cell2("program", [compileProgram(program)]), Cell2("frames", [VSequence(List.map(compileFrame, frames))])]);

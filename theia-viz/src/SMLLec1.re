@@ -109,7 +109,9 @@ sort of a heap */
 /* TODO: need pointers to the old evaluation area somehow. */
 /* TODO: show rewrite history or not? */
 /* TODO: pretty print configuration so it can be logged well. */
-type stack = list((string, option(smlValue)));
+
+/* two-tiered stack. each let list adds a new tier so it can be removed later */
+type stack = list(list((string, option(smlValue))));
 /* might want expr to actually be an optional to support val bindings that don't end in an expression */
 type rewrite = { focus: option(expr), valCtxs: list(smlValueEvalCtx) };
 type frame = { stack, rewrite }
@@ -117,10 +119,20 @@ type frame = { stack, rewrite }
 type program = { focus: grammar, ctxs: list(smlEvalCtx) };
 type configuration = { program, frames: list(frame), savedEnvs: list(stack) };
 
+let rec lookupOne = (key, oneStack) =>
+  switch (oneStack) {
+    | [] => None
+    | [(k, v), ...oneStack] => if (k == key) { Some(v) } else { lookupOne(key, oneStack) }
+  }
+
 let rec lookup = (key, stack) =>
   switch (stack) {
     | [] => None
-    | [(k, v), ...stack] => if (k == key) { Some(v) } else { lookup(key, stack) }
+    | [os, ...stack] =>
+      switch (lookupOne(key, os)) {
+        | None => lookup(key, stack)
+        | Some(v) => Some(v)
+      }
   };
 
 let step = (c: configuration): option(configuration) =>
@@ -171,14 +183,14 @@ let step = (c: configuration): option(configuration) =>
       Some({program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ECValListEnter(prevB, (), nextB), ...ctxs]}, frames, savedEnvs})
     /* TODO: I think I can avoid this doubling up of rules by using evaluation contexts for the stack, too */
     /* push variable on stack and focus on subexpression */
-    |      {program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ...ctxs]}, frames: [{stack, rewrite}, ...frames], savedEnvs} =>
-      Some({program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ...ctxs]}, frames: [{stack: [(x, None), ...stack], rewrite}, ...frames], savedEnvs})
+    |      {program: {focus: Expr(Var(x)), ctxs: [ECValBindVar((), e), ...ctxs]}, frames: [{stack: [os, ...stack], rewrite}, ...frames], savedEnvs} =>
+      Some({program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ...ctxs]}, frames: [{stack: [[(x, None), ...os], ...stack], rewrite}, ...frames], savedEnvs})
     /* push value onto stack */
-    |      {program: {focus: Expr(e), ctxs: [ECValBindExpr(_, ()), ...ctxs]}, frames: [{stack: [(x, None), ...stack], rewrite: {focus: Some(Value(v)), valCtxs: []}}, ...frames], savedEnvs} =>
-      Some({program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ...ctxs]}, frames: [{stack: [(x, Some(v)), ...stack], rewrite: {focus: Some(Value(v)), valCtxs: []}}, ...frames], savedEnvs})
+    |      {program: {focus: Expr(e), ctxs: [ECValBindExpr(_, ()), ...ctxs]}, frames: [{stack: [[(x, None), ...os], ...stack], rewrite: {focus: Some(Value(v)), valCtxs: []}}, ...frames], savedEnvs} =>
+      Some({program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ...ctxs]}, frames: [{stack: [[(x, Some(v)), ...os], ...stack], rewrite: {focus: Some(Value(v)), valCtxs: []}}, ...frames], savedEnvs})
     /* move up a level and clear rw */
-    |      {program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValListEnter(prevB, (), nextB), ...ctxs]}, frames: [{stack: [(_, Some(v)), ...stack], rewrite: {focus: Some(Value(_)), valCtxs: []}}, ...frames], savedEnvs} =>
-      Some({program: {focus: VB(ValBind(x, e)), ctxs: [ECValListExit(prevB, (), nextB), ...ctxs]}, frames: [{stack: [(x, Some(v)), ...stack], rewrite: {focus: None, valCtxs: []}}, ...frames], savedEnvs})
+    |      {program: {focus: Expr(e), ctxs: [ECValBindExpr(x, ()), ECValListEnter(prevB, (), nextB), ...ctxs]}, frames: [{stack: [[(_, Some(v)), ...os], ...stack], rewrite: {focus: Some(Value(_)), valCtxs: []}}, ...frames], savedEnvs} =>
+      Some({program: {focus: VB(ValBind(x, e)), ctxs: [ECValListExit(prevB, (), nextB), ...ctxs]}, frames: [{stack: [[(x, Some(v)), ...os], ...stack], rewrite: {focus: None, valCtxs: []}}, ...frames], savedEnvs})
     /* we're at the last binding. stop! */
     |      {program: {focus: VB(vb), ctxs: [ECValListExit(prevB, (), []), ...ctxs]}, frames, savedEnvs} =>
       Some({program: {focus: Dec(ValListExit(prevB @ [vb])), ctxs}, frames, savedEnvs})
@@ -202,8 +214,8 @@ let step = (c: configuration): option(configuration) =>
     /* local binding */
     /* TODO: change lookup to use previous bindings somehow. How to differentiate between lets and functions? Need a good way! */
     /* Focus on decl and add a new frame (TODO: there's an edge case here with the first let binding I think. Also need to separate the two steps) */
-    |      {program: {focus: Expr(Let(d, e)), ctxs}, frames, savedEnvs} =>
-      Some({program: {focus: Dec(d), ctxs: [ECLetDec((), e), ...ctxs]}, frames: [{stack: [], rewrite: {focus: None, valCtxs: []}}, ...frames], savedEnvs})
+    |      {program: {focus: Expr(Let(d, e)), ctxs}, frames: [{stack, rewrite}, ...frames], savedEnvs} =>
+      Some({program: {focus: Dec(d), ctxs: [ECLetDec((), e), ...ctxs]}, frames: [{stack: [[], ...stack], rewrite: {focus: None, valCtxs: []}}, ...frames], savedEnvs})
     /* focus on expr */
     |      {program: {focus: Dec(ValListExit(vbs)), ctxs: [ECLetDec((), e), ...ctxs]}, frames, savedEnvs} =>
       Some({program: {focus: Expr(e), ctxs: [ECLetExpr(ValListExit(vbs), ()), ...ctxs]}, frames, savedEnvs})
@@ -213,10 +225,10 @@ let step = (c: configuration): option(configuration) =>
   };
 
 let injectExpr = (e) => {
-  {program: { focus: Expr(e), ctxs: []}, frames: [{stack: [/* ("x", Some(VInt(32))), ("y", Some(VInt(53))) */], rewrite: {focus: None, valCtxs: []}}], savedEnvs: []}
+  {program: { focus: Expr(e), ctxs: []}, frames: [{stack: [[/* ("x", Some(VInt(32))), ("y", Some(VInt(53))) */]], rewrite: {focus: None, valCtxs: []}}], savedEnvs: []}
 };
 let injectDec = (dec) => {
-  {program: { focus: Dec(dec), ctxs: []}, frames: [{stack: [/* ("x", Some(VInt(32))), ("y", Some(VInt(53))) */], rewrite: {focus: None, valCtxs: []}}], savedEnvs: []}
+  {program: { focus: Dec(dec), ctxs: []}, frames: [{stack: [[/* ("x", Some(VInt(32))), ("y", Some(VInt(53))) */]], rewrite: {focus: None, valCtxs: []}}], savedEnvs: []}
 };
 
 /* https://stackoverflow.com/a/22472610 */
