@@ -220,7 +220,9 @@ let step = (c: configuration): option(configuration) =>
     |      {program: {focus: Dec(ValListExit(vbs)), ctxs: [ECLetDec((), e), ...ctxs]}, frames, savedEnvs} =>
       Some({program: {focus: Expr(e), ctxs: [ECLetExpr(ValListExit(vbs), ()), ...ctxs]}, frames, savedEnvs})
     /* leave let */
-    /* TODO!!! */
+    |      {program: {focus: Expr(e), ctxs: [ECLetExpr(ValListExit(vbs), ()), ...ctxs]}, frames: [{stack: [os, ...stack], rewrite: {focus: Some(v), valCtxs: []}}, ...frames], savedEnvs} =>
+      Some({program: {focus: Expr(Let(ValListExit(vbs), e)), ctxs}, frames: [{stack, rewrite: {focus: Some(v), valCtxs: []}}, ...frames], savedEnvs})
+    /* TODO!!! This method doesn't quite work. Try tracing by hand. */
     | _ => None
   };
 
