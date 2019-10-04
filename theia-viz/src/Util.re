@@ -23,6 +23,7 @@ let prettierList = (~parens=true, ss) => {
     switch (ss) {
     | [] => <> </>
     | [s] => <> s </>
+    | [s, t, ...ss] when t == React.string(";") => <> s t <br /> {loop(ss)} </>
     | [s, ...ss] => <> s {React.string(" ")} {loop(ss)} </>
     };
   if (parens) {
