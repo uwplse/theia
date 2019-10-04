@@ -11,6 +11,11 @@ module MINI-SML-SYNTAX
                | Id
                | "(" Exp ")" [bracket]
                | Exp "+" Exp [strict, left]
+
+  syntax Val ::= Bool
+
+  syntax Exp ::= Exp "<=" Exp [strict, left]
+               | "if" Exp "then" Exp "else" Exp
 endmodule
 
 module MINI-SML
@@ -34,4 +39,10 @@ module MINI-SML
 
   rule <k> X => V ...</k>
        <env>... X |-> V ...</env>
+
+  rule I1:Int <= I2:Int => I1 <=Int I2
+
+  rule if true  then E else _ => E
+  rule if false then _ else E => E
+
 endmodule

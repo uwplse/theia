@@ -1088,7 +1088,7 @@ module MAP-SYMBOLIC$SYNTAX [org.kframework.attributes.Location(Location(158,1,18
 endmodule
 
 
-module MINI-SML [org.kframework.attributes.Location(Location(16,1,37,9)) org.kframework.attributes.Source(Source(/Users/oft/files/theia/mini-sml-talk/./mini-sml.k))]
+module MINI-SML [org.kframework.attributes.Location(Location(21,1,48,9)) org.kframework.attributes.Source(Source(/Users/oft/files/theia/mini-sml-talk/./mini-sml.k))]
   imports MINI-SML-SYNTAX
   imports MINI-SML$SYNTAX
   imports MAP
@@ -1099,50 +1099,57 @@ module MINI-SML [org.kframework.attributes.Location(Location(16,1,37,9)) org.kfr
   rule initTCell(Init)=>`<T>`(#noDots(.KList),#cells(initKCell(Init),initEnvCell(.KList)),#noDots(.KList)) requires #token("true","Bool") ensures #token("true","Bool") [initializer()]
   rule initKCell(Init)=>`<k>`(#noDots(.KList),#SemanticCastToDecs(`project:Decs`(`Map:lookup`(Init,#token("$PGM","KConfigVar")))),#noDots(.KList)) requires #token("true","Bool") ensures #token("true","Bool") [initializer()]
   rule initEnvCell(.KList)=>`<env>`(#noDots(.KList),`.Map`(.KList),#noDots(.KList)) requires #token("true","Bool") ensures #token("true","Bool") [initializer()]
-  rule `_;__MINI-SML-SYNTAX`(#SemanticCastToDec(D),#SemanticCastToDecs(Ds))=>#SemanticCastToDec(D)~>#SemanticCastToDecs(Ds) requires #token("true","Bool") ensures #token("true","Bool") [contentStartColumn(8) contentStartLine(30) org.kframework.attributes.Location(Location(30,8,30,34)) org.kframework.attributes.Source(Source(/Users/oft/files/theia/mini-sml-talk/./mini-sml.k)) org.kframework.definition.Production(syntax #RuleContent ::= #RuleBody [klabel(#ruleNoConditions) symbol()])]
-  rule `_+__MINI-SML-SYNTAX`(#SemanticCastToInt(I1),#SemanticCastToInt(I2))=>`_+Int_`(#SemanticCastToInt(I1),#SemanticCastToInt(I2)) requires #token("true","Bool") ensures #token("true","Bool") [contentStartColumn(8) contentStartLine(27) org.kframework.attributes.Location(Location(27,8,27,37)) org.kframework.attributes.Source(Source(/Users/oft/files/theia/mini-sml-talk/./mini-sml.k)) org.kframework.definition.Production(syntax #RuleContent ::= #RuleBody [klabel(#ruleNoConditions) symbol()])]
-  rule `.List{"_;__MINI-SML-SYNTAX"}`(.KList)=>.K requires #token("true","Bool") ensures #token("true","Bool") [contentStartColumn(8) contentStartLine(29) org.kframework.attributes.Location(Location(29,8,29,18)) org.kframework.attributes.Source(Source(/Users/oft/files/theia/mini-sml-talk/./mini-sml.k)) org.kframework.definition.Production(syntax #RuleContent ::= #RuleBody [klabel(#ruleNoConditions) symbol()])]
-  rule #cells(`<k>`(#noDots(.KList),`val_=__MINI-SML-SYNTAX`(#SemanticCastToId(X),#SemanticCastToVal(V))~>Ds=>Ds,#noDots(.KList)),`<env>`(#dots(.KList),`.Map`(.KList)=>`_|->_`(#SemanticCastToId(X),#SemanticCastToVal(V)),#noDots(.KList))) requires #token("true","Bool") ensures #token("true","Bool") [contentStartColumn(8) contentStartLine(32) org.kframework.attributes.Location(Location(32,8,33,39)) org.kframework.attributes.Source(Source(/Users/oft/files/theia/mini-sml-talk/./mini-sml.k)) org.kframework.definition.Production(syntax #RuleContent ::= #RuleBody [klabel(#ruleNoConditions) symbol()])]
-  rule #cells(`<k>`(#noDots(.KList),#SemanticCastToKItem(X)=>#SemanticCastToKItem(V),#dots(.KList)),`<env>`(#dots(.KList),`_|->_`(#SemanticCastToKItem(X),#SemanticCastToKItem(V)),#dots(.KList))) requires #token("true","Bool") ensures #token("true","Bool") [contentStartColumn(8) contentStartLine(35) org.kframework.attributes.Location(Location(35,8,36,34)) org.kframework.attributes.Source(Source(/Users/oft/files/theia/mini-sml-talk/./mini-sml.k)) org.kframework.definition.Production(syntax #RuleContent ::= #RuleBody [klabel(#ruleNoConditions) symbol()])]
+  rule `if_then_else__MINI-SML-SYNTAX`(#token("true","Bool"),#SemanticCastToExp(E),#SemanticCastToExp(_))=>#SemanticCastToExp(E) requires #token("true","Bool") ensures #token("true","Bool") [contentStartColumn(8) contentStartLine(45) org.kframework.attributes.Location(Location(45,8,45,35)) org.kframework.attributes.Source(Source(/Users/oft/files/theia/mini-sml-talk/./mini-sml.k)) org.kframework.definition.Production(syntax #RuleContent ::= #RuleBody [klabel(#ruleNoConditions) symbol()])]
+  rule `if_then_else__MINI-SML-SYNTAX`(#token("false","Bool"),#SemanticCastToExp(_),#SemanticCastToExp(E))=>#SemanticCastToExp(E) requires #token("true","Bool") ensures #token("true","Bool") [contentStartColumn(8) contentStartLine(46) org.kframework.attributes.Location(Location(46,8,46,35)) org.kframework.attributes.Source(Source(/Users/oft/files/theia/mini-sml-talk/./mini-sml.k)) org.kframework.definition.Production(syntax #RuleContent ::= #RuleBody [klabel(#ruleNoConditions) symbol()])]
+  rule `_<=__MINI-SML-SYNTAX`(#SemanticCastToInt(I1),#SemanticCastToInt(I2))=>`_<=Int__INT-COMMON`(#SemanticCastToInt(I1),#SemanticCastToInt(I2)) requires #token("true","Bool") ensures #token("true","Bool") [contentStartColumn(8) contentStartLine(43) org.kframework.attributes.Location(Location(43,8,43,39)) org.kframework.attributes.Source(Source(/Users/oft/files/theia/mini-sml-talk/./mini-sml.k)) org.kframework.definition.Production(syntax #RuleContent ::= #RuleBody [klabel(#ruleNoConditions) symbol()])]
+  rule `_;__MINI-SML-SYNTAX`(#SemanticCastToDec(D),#SemanticCastToDecs(Ds))=>#SemanticCastToDec(D)~>#SemanticCastToDecs(Ds) requires #token("true","Bool") ensures #token("true","Bool") [contentStartColumn(8) contentStartLine(35) org.kframework.attributes.Location(Location(35,8,35,34)) org.kframework.attributes.Source(Source(/Users/oft/files/theia/mini-sml-talk/./mini-sml.k)) org.kframework.definition.Production(syntax #RuleContent ::= #RuleBody [klabel(#ruleNoConditions) symbol()])]
+  rule `_+__MINI-SML-SYNTAX`(#SemanticCastToInt(I1),#SemanticCastToInt(I2))=>`_+Int_`(#SemanticCastToInt(I1),#SemanticCastToInt(I2)) requires #token("true","Bool") ensures #token("true","Bool") [contentStartColumn(8) contentStartLine(32) org.kframework.attributes.Location(Location(32,8,32,37)) org.kframework.attributes.Source(Source(/Users/oft/files/theia/mini-sml-talk/./mini-sml.k)) org.kframework.definition.Production(syntax #RuleContent ::= #RuleBody [klabel(#ruleNoConditions) symbol()])]
+  rule `.List{"_;__MINI-SML-SYNTAX"}`(.KList)=>.K requires #token("true","Bool") ensures #token("true","Bool") [contentStartColumn(8) contentStartLine(34) org.kframework.attributes.Location(Location(34,8,34,18)) org.kframework.attributes.Source(Source(/Users/oft/files/theia/mini-sml-talk/./mini-sml.k)) org.kframework.definition.Production(syntax #RuleContent ::= #RuleBody [klabel(#ruleNoConditions) symbol()])]
+  rule #cells(`<k>`(#noDots(.KList),`val_=__MINI-SML-SYNTAX`(#SemanticCastToId(X),#SemanticCastToVal(V))~>Ds=>Ds,#noDots(.KList)),`<env>`(#dots(.KList),`.Map`(.KList)=>`_|->_`(#SemanticCastToId(X),#SemanticCastToVal(V)),#noDots(.KList))) requires #token("true","Bool") ensures #token("true","Bool") [contentStartColumn(8) contentStartLine(37) org.kframework.attributes.Location(Location(37,8,38,39)) org.kframework.attributes.Source(Source(/Users/oft/files/theia/mini-sml-talk/./mini-sml.k)) org.kframework.definition.Production(syntax #RuleContent ::= #RuleBody [klabel(#ruleNoConditions) symbol()])]
+  rule #cells(`<k>`(#noDots(.KList),#SemanticCastToKItem(X)=>#SemanticCastToKItem(V),#dots(.KList)),`<env>`(#dots(.KList),`_|->_`(#SemanticCastToKItem(X),#SemanticCastToKItem(V)),#dots(.KList))) requires #token("true","Bool") ensures #token("true","Bool") [contentStartColumn(8) contentStartLine(40) org.kframework.attributes.Location(Location(40,8,41,34)) org.kframework.attributes.Source(Source(/Users/oft/files/theia/mini-sml-talk/./mini-sml.k)) org.kframework.definition.Production(syntax #RuleContent ::= #RuleBody [klabel(#ruleNoConditions) symbol()])]
 endmodule
 
 
-module MINI-SML$SYNTAX [org.kframework.attributes.Location(Location(16,1,37,9)) org.kframework.attributes.Source(Source(/Users/oft/files/theia/mini-sml-talk/./mini-sml.k))]
+module MINI-SML$SYNTAX [org.kframework.attributes.Location(Location(21,1,48,9)) org.kframework.attributes.Source(Source(/Users/oft/files/theia/mini-sml-talk/./mini-sml.k))]
   imports MINI-SML-SYNTAX$SYNTAX
   imports MAP$SYNTAX
   imports DOMAINS$SYNTAX
   syntax TCellFragment ::= "<T>-fragment" KCellOpt EnvCellOpt "</T>-fragment" [cellFragment(TCell)]
   syntax TCell ::= "initTCell" "(" Map ")" [function() initializer() noThread()]
-  syntax TCell ::= "<T>" KCell EnvCell "</T>" [cell() cellName(T) contentStartColumn(17) contentStartLine(22) format(%1%i%n%2%n%3%d%n%4) org.kframework.definition.Production(syntax #RuleContent ::= #RuleBody [klabel(#ruleNoConditions) symbol()]) topcell()]
+  syntax TCell ::= "<T>" KCell EnvCell "</T>" [cell() cellName(T) contentStartColumn(17) contentStartLine(27) format(%1%i%n%2%n%3%d%n%4) org.kframework.definition.Production(syntax #RuleContent ::= #RuleBody [klabel(#ruleNoConditions) symbol()]) topcell()]
   syntax KResult ::= Val
   syntax KCellOpt ::= KCell
   syntax KCellOpt ::= "noKCell" [cellOptAbsent(KCell)]
   syntax KCell ::= "initKCell" "(" Map ")" [function() initializer() noThread()]
-  syntax KCell ::= "<k>" K "</k>" [cell() cellName(k) contentStartColumn(17) contentStartLine(22) format(%1%i%n%2%d%n%3) maincell() org.kframework.definition.Production(syntax #RuleContent ::= #RuleBody [klabel(#ruleNoConditions) symbol()])]
+  syntax KCell ::= "<k>" K "</k>" [cell() cellName(k) contentStartColumn(17) contentStartLine(27) format(%1%i%n%2%d%n%3) maincell() org.kframework.definition.Production(syntax #RuleContent ::= #RuleBody [klabel(#ruleNoConditions) symbol()])]
   syntax EnvCellOpt ::= EnvCell
   syntax EnvCellOpt ::= "noEnvCell" [cellOptAbsent(EnvCell)]
   syntax EnvCell ::= "initEnvCell" [function() initializer() noThread()]
-  syntax EnvCell ::= "<env>" Map "</env>" [cell() cellName(env) contentStartColumn(17) contentStartLine(22) format(%1%i%n%2%d%n%3) org.kframework.definition.Production(syntax #RuleContent ::= #RuleBody [klabel(#ruleNoConditions) symbol()])]
+  syntax EnvCell ::= "<env>" Map "</env>" [cell() cellName(env) contentStartColumn(17) contentStartLine(27) format(%1%i%n%2%d%n%3) org.kframework.definition.Production(syntax #RuleContent ::= #RuleBody [klabel(#ruleNoConditions) symbol()])]
   Bubble(config,<T>
                   <k> $PGM:Decs </k>
                   <env> .Map </env>
-                </T>,[contentStartColumn(17) contentStartLine(22) org.kframework.attributes.Location(Location(22,3,25,20)) org.kframework.attributes.Source(Source(/Users/oft/files/theia/mini-sml-talk/./mini-sml.k))])
+                </T>,[contentStartColumn(17) contentStartLine(27) org.kframework.attributes.Location(Location(27,3,30,20)) org.kframework.attributes.Source(Source(/Users/oft/files/theia/mini-sml-talk/./mini-sml.k))])
 endmodule
 
 
-module MINI-SML-SYNTAX [org.kframework.attributes.Location(Location(1,1,14,9)) org.kframework.attributes.Source(Source(/Users/oft/files/theia/mini-sml-talk/./mini-sml.k))]
+module MINI-SML-SYNTAX [org.kframework.attributes.Location(Location(1,1,19,9)) org.kframework.attributes.Source(Source(/Users/oft/files/theia/mini-sml-talk/./mini-sml.k))]
   imports MINI-SML-SYNTAX$SYNTAX
   imports DOMAINS-SYNTAX
 endmodule
 
 
-module MINI-SML-SYNTAX$SYNTAX [org.kframework.attributes.Location(Location(1,1,14,9)) org.kframework.attributes.Source(Source(/Users/oft/files/theia/mini-sml-talk/./mini-sml.k))]
+module MINI-SML-SYNTAX$SYNTAX [org.kframework.attributes.Location(Location(1,1,19,9)) org.kframework.attributes.Source(Source(/Users/oft/files/theia/mini-sml-talk/./mini-sml.k))]
   imports DOMAINS-SYNTAX$SYNTAX
+  syntax associativity left _<=__MINI-SML-SYNTAX
   syntax associativity left _+__MINI-SML-SYNTAX
   syntax Val ::= Int
+  syntax Val ::= Bool
   syntax Exp ::= Val
   syntax Exp ::= Id
+  syntax Exp ::= Exp "<=" Exp [left() strict()]
   syntax Exp ::= Exp "+" Exp [left() strict()]
+  syntax Exp ::= "if" Exp "then" Exp "else" Exp
   syntax Exp ::= "(" Exp ")" [bracket()]
   syntax Decs ::= Dec ";" Decs [right() userList(*)]
   syntax Decs ::= ".Decs" [klabel(.List{"_;__MINI-SML-SYNTAX"}) userList(*)]
