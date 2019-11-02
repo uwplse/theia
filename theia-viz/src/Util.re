@@ -57,3 +57,9 @@ let (--) = (i, j) => {
   let rec aux = (n, acc) => if (n < i) { acc } else { aux(n - 1, [n, ...acc]) };
   aux(j, [])
 };
+
+let rec lookupOne = (key, oneStack) =>
+  switch (oneStack) {
+    | [] => None
+    | [(k, v), ...oneStack] => if (k == key) { Some(v) } else { lookupOne(key, oneStack) }
+  };

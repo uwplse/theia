@@ -226,46 +226,6 @@ let step = (c: configuration): option(configuration) =>
     | _ => None
   };
 
-let injectExpr = (e) => {
-  {program: { focus: Expr(e), ctxs: []}, frames: [{stack: [[/* ("x", Some(VInt(32))), ("y", Some(VInt(53))) */]], rewrite: {focus: None, valCtxs: []}}], savedEnvs: []}
-};
-let injectDec = (dec) => {
-  {program: { focus: Dec(dec), ctxs: []}, frames: [{stack: [[/* ("x", Some(VInt(32))), ("y", Some(VInt(53))) */]], rewrite: {focus: None, valCtxs: []}}], savedEnvs: []}
-};
-
-/* https://stackoverflow.com/a/22472610 */
-let rec takeWhileInclusive = (p, l) =>
-  switch (l) {
-    | [] => []
-    | [x, ...xs] => [x, ...(if (p(x)) { takeWhileInclusive(p, xs) }
-                                 else { [] })]
-  };
-
-let rec iterateMaybeAux = (f, x) =>
-  switch (x) {
-    | None => []
-    | Some(x) =>
-        let fx = f(x);
-        [x, ...iterateMaybeAux(f, fx)]
-    };
-
-let iterateMaybe = (f, x) => iterateMaybeAux(f, Some(x));
-
-let rec iterateMaybeAuxBounded = (i, f, x) =>
-  if (i <= 0) {
-    []
-  } else {
-    switch (x) {
-      | None => []
-      | Some(x) =>
-          let fx = f(x);
-          [x, ...iterateMaybeAuxBounded(i - 1, f, fx)]
-      }
-  };
-
-/* lazy would make this easier! */
-let iterateMaybeMaxDepth = (i, f, x) => iterateMaybeAuxBounded(i, f, Some(x));
-
 let isNone = (o) =>
   switch (o) {
     | None => true
@@ -280,9 +240,15 @@ let isFinal = (c) =>
     | _ => false
   };
 
+let injectExpr = (e) => {
+  {program: { focus: Expr(e), ctxs: []}, frames: [{stack: [[/* ("x", Some(VInt(32))), ("y", Some(VInt(53))) */]], rewrite: {focus: None, valCtxs: []}}], savedEnvs: []}
+};
+let injectDec = (dec) => {
+  {program: { focus: Dec(dec), ctxs: []}, frames: [{stack: [[/* ("x", Some(VInt(32))), ("y", Some(VInt(53))) */]], rewrite: {focus: None, valCtxs: []}}], savedEnvs: []}
+};
 
-let interpretTraceBounded = (~maxDepth=100, p) => takeWhileInclusive((c) => !isFinal(c), iterateMaybeMaxDepth(maxDepth, step, injectExpr(p)));
-let interpretTrace = (p) => takeWhileInclusive((c) => !isFinal(c), iterateMaybe(step, injectExpr(p)));
+let interpretTraceBounded = (~maxDepth=100, p) => TheiaUtil.takeWhileInclusive((c) => !isFinal(c), TheiaUtil.iterateMaybeMaxDepth(maxDepth, step, injectExpr(p)));
+let interpretTrace = (p) => TheiaUtil.takeWhileInclusive((c) => !isFinal(c), TheiaUtil.iterateMaybe(step, injectExpr(p)));
 
 let extract = (c) =>
   switch (c) {
