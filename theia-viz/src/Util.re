@@ -18,6 +18,7 @@ let insert = (x, xs, i) => {
 };
 
 let prettierList = (~parens=true, ~space=true, ss) => {
+  let parens = false; /* manual override */
   let ss = List.filter((s) => s != React.string{""}, ss);
   let rec loop = (ss) =>
     switch (ss) {
