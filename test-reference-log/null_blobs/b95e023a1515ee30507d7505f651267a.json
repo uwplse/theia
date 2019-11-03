@@ -1,0 +1,9 @@
+<T>
+  <k>
+    let val x = 5 in x end
+  </k>
+  <env>
+    .Map
+  </env>
+</T>
+
