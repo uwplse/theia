@@ -18,6 +18,7 @@ type hole = unit;
 
 type vid = string;
 type lab = string;
+type basVal = string;
 
 type sCon =
   | INT(int);
@@ -33,6 +34,7 @@ and expRow = { lab, exp, rest: option(expRow) }
 
 and exp =
   | ATEXP(atExp)
+  | APP(exp, atExp)
 
 and dec =
   /* no tyvar seq */
@@ -55,6 +57,7 @@ type record = list((lab, val_))
 
 and val_ =
   | SVAL(sVal)
+  | BASVAL(basVal)
   | RECORD(record);
 
 type strDec =
@@ -72,6 +75,8 @@ type focus =
   | ValBind(valBind)
   | StrDec(strDec)
   | TopDec(topDec)
+  | ExpRow(expRow)
+  | Record(record)
   | Empty;
 
 type valEnv = list((vid, val_));
@@ -79,13 +84,23 @@ type valEnv = list((vid, val_));
 type ctxt =
   | LETD(hole, exp)
   | VALBINDE(pat, hole, option(valBind))
-  | SEQL(hole, strDec);
+  | SEQL(hole, strDec)
+  | APPL(hole, atExp)
+  | APPR(val_, hole)
+  /* is that a... */
+  | RECORDER(hole);
 
 type ctxts = list(ctxt);
 
 type rewrite = { focus, ctxts };
 
 type configuration = { rewrite, env: valEnv };
+
+let apply = (f, v) =>
+  switch (f) {
+    | "+" => failwith("need record values and need to be able to extract them!")
+    | _ => failwith("unknown built-in function: " ++ f)
+  }
 
 let step = (c: configuration): option(configuration) =>
   switch (c) {
@@ -101,13 +116,17 @@ let step = (c: configuration): option(configuration) =>
         | Some(v) => Some({ rewrite: { focus: Val(v), ctxts }, env })
       }
 
-    // [92ish]
+    // [92]
+    /* empty record */
     | { rewrite: { focus: AtExp(RECORD(None)), ctxts }, env } => Some({ rewrite: { focus:
     Val(RECORD([])), ctxts }, env })
-    // | { rewrite: Exp(ATEXP(RECORD(Some(er)))), env } => Some(???)
-    // | { rewrite: Exp(ATEXP(RECORD(Some({ lab, exp, rest })))), env } => Some({ rewrite:
-    // Exp(ATEXP(RECORD(rest))), env })
-    
+    /* start non-empty record */
+    | { rewrite: { focus: Exp(ATEXP(RECORD(Some(er)))), ctxts }, env } => Some({ rewrite: { focus:
+    ExpRow(er), ctxts: [RECORDER(()), ...ctxts] }, env })
+    /* complete non-empty record */
+    | { rewrite: { focus: Record(r), ctxts: [RECORDER(()), ...ctxts] }, env } => Some({ rewrite: {
+    focus: Val(RECORD(r)), ctxts }, env })
+
     // [93]
     | { rewrite: { focus: AtExp(LET(d, e)), ctxts }, env } => Some({ rewrite: { focus: Dec(d),
     ctxts: [LETD((), e), ...ctxts] }, env })
@@ -123,6 +142,16 @@ let step = (c: configuration): option(configuration) =>
     // [96]
     | { rewrite: { focus: Exp(ATEXP(a)), ctxts }, env } => Some({ rewrite: { focus: AtExp(a), ctxts
     }, env })
+
+    // helper rule for function application
+    /* TODO: should take an APP and visit LHS */
+
+    // [101]
+    /* TODO: may want a more coarse-grained traversal, not sure */
+    /* | { rewrite: { focus: Val(BASVAL(f)), ctxts: [APPL((), a), ...ctxts] }, env } => Some({ rewrite:
+    { focus: AtExp(a), ctxts: [APPR(BASVAL(f), ()), ...ctxts] }, env })
+    | { rewrite: { focus: Val(v), ctxts: [APPR(BASVAL(f), ()), ...ctxts] }, env } => Some({ rewrite:
+    { focus: Val(apply(f, v)), ctxts }, env }) */
 
     /* Matches */
     /* Match Rules */
@@ -212,3 +241,16 @@ let ex3 = TopDec(
                       ATEXP(SCON(INT(34))), None))), DEC(
                   VAL(PLAIN(ATPAT(ID("x")),
                       ATEXP(SCON(INT(17))), None)))), None));
+
+/* {} () */
+let ex4 = AtExp(RECORD(None));
+/* { 1=5 } (5,) */
+let ex5 = AtExp(RECORD(Some({ lab: "1", exp: ATEXP(SCON(INT(5))), rest: None })))
+/* { 1=5, 2=78 } (5, 78) */
+// let ex4 = false;
+
+/*
+  val x = 34;
+  val y = 17;
+  val z = (x + y) + (y + 2)
+*/

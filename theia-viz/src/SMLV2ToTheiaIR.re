@@ -16,10 +16,19 @@ let rec compileAtExp = (a) =>
   switch (a) {
     | SCON(sc) => compileSCon(sc)
     | ID(x) => Atom(React.string(x))
-    // | RECORD(option(expRow))
+    | RECORD(None) => Atom(React.string("()"))
+    | RECORD(Some(er)) => Apply2([React.string("{"), React.string("}")], [compileExpRow(er)])
     | LET(d, e) => Apply2([React.string("let "), React.string(" in "), React.string(" end")],
     [compileDec(d), compileExp(e)])
     | PARA(e) => Apply2([React.string("("), React.string(")")], [compileExp(e)])
+  }
+
+and compileExpRow = ({ lab, exp, rest}) =>
+  switch (rest) {
+    | None => Apply2([<> </>, React.string("="), <> </>], [Atom(React.string(lab)),
+    compileExp(exp)])
+    | Some(er) => Apply2([<> </>, React.string("="), React.string(", "), <> </>], [Atom(React.string(lab)),
+    compileExp(exp), compileExpRow(er)])
   }
 
 and compileExp = (e) =>
@@ -52,10 +61,19 @@ let compileSVal = (sv: sVal) =>
     | INT(n) => Value2([], [Atom(React.string(string_of_int(n)))])
   };
 
-let compileVal_ = (v) =>
+let rec compileVal_ = (v) =>
   switch (v) {
     | SVAL(sv) => compileSVal(sv)
-  };
+    | RECORD([]) => Value2([], [Atom(React.string("()"))])
+    | RECORD(r) => Value2([], [Apply2([React.string("{"), React.string("}")], [compileRecord(r)])])
+  }
+
+and compileRecord = (r) =>
+  switch (r) {
+    | [] => Atom(<> </>)
+    | [(l, v)] => Apply2([<> </>, React.string("="), <> </>], [Atom(React.string(l)), compileVal_(v)])
+    | [(l, v), ...r] => Apply2([<> </>, React.string("="), React.string(", "), <> </>], [Atom(React.string(l)), compileVal_(v), compileRecord(r)])
+  }
 
 let rec compileStrDec = (sd) =>
   switch (sd) {
