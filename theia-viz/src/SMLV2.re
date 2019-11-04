@@ -78,7 +78,8 @@ type valEnv = list((vid, val_));
 
 type ctxt =
   | LETD(hole, exp)
-  | VALBINDE(pat, hole, option(valBind));
+  | VALBINDE(pat, hole, option(valBind))
+  | SEQL(hole, strDec);
 
 type ctxts = list(ctxt);
 
@@ -155,6 +156,10 @@ let step = (c: configuration): option(configuration) =>
 
     // [160]
     /* TODO: requires an eval context for sequence of strdecs! */
+    | { rewrite: { focus: StrDec(SEQ(sd1, sd2)), ctxts }, env } => Some({ rewrite: { focus:
+    StrDec(sd1), ctxts: [SEQL((), sd2), ...ctxts] }, env })
+    | { rewrite: { focus: Empty, ctxts: [SEQL((), sd2), ...ctxts] }, env } => Some({ rewrite: {
+    focus: StrDec(sd2), ctxts }, env })
 
     /* ... */
 
@@ -200,7 +205,6 @@ let ex1 = AtExp(LET(VAL(PLAIN(ATPAT(ID("x")), ATEXP(SCON(INT(5))), None)), ATEXP
 let ex2 = TopDec(STRDEC(DEC(VAL(PLAIN(ATPAT(ID("x")),
                       ATEXP(SCON(INT(34))), None))), None));
 /* val x = 34; val y = 17 */
-/* TODO: doesn't work yet :( */
 let ex3 = TopDec(
             STRDEC(
               SEQ(

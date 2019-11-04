@@ -85,7 +85,9 @@ let compileCtxt = (c) =>
   switch (c) {
     | LETD((), e) => { ops: [React.string("let "), React.string(" in "), React.string(" end")], args:
     [compileExp(e)], holePos: 0 }
-    | VALBINDE(p, (), None) => { ops: [<> </>, React.string(" = "), <> </>], args: [compilePat(p)], holePos: 1 }
+    | VALBINDE(p, (), None) => { ops: [<> </>, React.string(" = "), <> </>], args: [compilePat(p)],
+    holePos: 1 }
+    | SEQL((), sd2) => { ops: [<> </>, <> {React.string(";")} <br/> </>, <> </>], args: [compileStrDec(sd2)], holePos: 0 }
   };
 
 let compileKVs = ((k, v)) => KV2((Atom(React.string(k)), compileVal_(v)));
