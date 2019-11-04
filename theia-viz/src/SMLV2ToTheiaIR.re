@@ -57,6 +57,18 @@ let compileVal_ = (v) =>
     | SVAL(sv) => compileSVal(sv)
   };
 
+let rec compileStrDec = (sd) =>
+  switch (sd) {
+    | DEC(d) => compileDec(d)
+    | SEQ(sd1, sd2) => Apply2([<> </>, <> {React.string(";")} <br/> </>, <> </>], [compileStrDec(sd1),
+    compileStrDec(sd2)])
+  };
+
+let compileTopDec = (td) =>
+  switch (td) {
+    | STRDEC(sd, None) => compileStrDec(sd)
+  };
+
 let compileFocus = (f) =>
   switch (f) {
     | AtExp(a) => compileAtExp(a)
@@ -64,6 +76,8 @@ let compileFocus = (f) =>
     | Val(v) => compileVal_(v)
     | Dec(d) => compileDec(d)
     | ValBind(vb) => compileValBind(vb)
+    | StrDec(sd) => compileStrDec(sd)
+    | TopDec(td) => compileTopDec(td)
     | Empty => Atom(React.string(""))
   };
 

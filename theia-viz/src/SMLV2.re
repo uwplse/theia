@@ -57,12 +57,21 @@ and val_ =
   | SVAL(sVal)
   | RECORD(record);
 
+type strDec =
+  | DEC(dec)
+  | SEQ(strDec, strDec);
+
+type topDec =
+  | STRDEC(strDec, option(topDec));
+
 type focus =
   | AtExp(atExp)
   | Exp(exp)
   | Val(val_)
   | Dec(dec)
   | ValBind(valBind)
+  | StrDec(strDec)
+  | TopDec(topDec)
   | Empty;
 
 type valEnv = list((vid, val_));
@@ -136,6 +145,23 @@ let step = (c: configuration): option(configuration) =>
     /* Atomic Patterns */
     /* Pattern Rows */
     /* Patterns */
+
+    /* ... */
+
+    /* Structure-level Declarations */
+    // [156]
+    | { rewrite: { focus: StrDec(DEC(d)), ctxts }, env } => Some({ rewrite: { focus: Dec(d), ctxts
+    }, env })
+
+    // [160]
+    /* TODO: requires an eval context for sequence of strdecs! */
+
+    /* ... */
+
+    /* Top-level Declarations */
+    // [184ish]
+    | { rewrite: { focus: TopDec(STRDEC(sd, None)), ctxts }, env } => Some({ rewrite: { focus: StrDec(sd),
+    ctxts }, env })
     | _ => None
   };
 
@@ -165,6 +191,21 @@ let interpretTrace = (p) => TheiaUtil.takeWhileInclusive((c) => !isFinal(c), The
 //     | {frames: [{rewrite: {rewrite: Some(Value(VInt(n)))}}]} => string_of_int(n)
 //   };
 
-/* example programs */
+/* example "programs" */
+/* 5 */
 let ex0 = AtExp(SCON(INT(5)));
+/* let val x = 5 in x end */
 let ex1 = AtExp(LET(VAL(PLAIN(ATPAT(ID("x")), ATEXP(SCON(INT(5))), None)), ATEXP(ID("x"))));
+/* val x = 34 */
+let ex2 = TopDec(STRDEC(DEC(VAL(PLAIN(ATPAT(ID("x")),
+                      ATEXP(SCON(INT(34))), None))), None));
+/* val x = 34; val y = 17 */
+/* TODO: doesn't work yet :( */
+let ex3 = TopDec(
+            STRDEC(
+              SEQ(
+                DEC(
+                  VAL(PLAIN(ATPAT(ID("x")),
+                      ATEXP(SCON(INT(34))), None))), DEC(
+                  VAL(PLAIN(ATPAT(ID("x")),
+                      ATEXP(SCON(INT(17))), None)))), None));
