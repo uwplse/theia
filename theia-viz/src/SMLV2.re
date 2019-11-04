@@ -101,7 +101,7 @@ let step = (c: configuration): option(configuration) =>
         | Some(v) => Some({ rewrite: { focus: Val(v), ctxts }, env })
       }
 
-    // [92]
+    // [92ish]
     | { rewrite: { focus: AtExp(RECORD(None)), ctxts }, env } => Some({ rewrite: { focus:
     Val(RECORD([])), ctxts }, env })
     // | { rewrite: Exp(ATEXP(RECORD(Some(er)))), env } => Some(???)
@@ -155,7 +155,6 @@ let step = (c: configuration): option(configuration) =>
     }, env })
 
     // [160]
-    /* TODO: requires an eval context for sequence of strdecs! */
     | { rewrite: { focus: StrDec(SEQ(sd1, sd2)), ctxts }, env } => Some({ rewrite: { focus:
     StrDec(sd1), ctxts: [SEQL((), sd2), ...ctxts] }, env })
     | { rewrite: { focus: Empty, ctxts: [SEQL((), sd2), ...ctxts] }, env } => Some({ rewrite: {
