@@ -96,7 +96,9 @@ let compileFocus = (f) =>
     | ValBind(vb) => compileValBind(vb)
     | StrDec(sd) => compileStrDec(sd)
     | TopDec(td) => compileTopDec(td)
-    | Empty => Atom(React.string(""))
+    | ExpRow(er) => compileExpRow(er)
+    | Record(r) => compileRecord(r)
+    | Empty => Atom(<> </>)
   };
 
 let compileCtxt = (c) =>
@@ -105,7 +107,14 @@ let compileCtxt = (c) =>
     [compileExp(e)], holePos: 0 }
     | VALBINDE(p, (), None) => { ops: [<> </>, React.string(" = "), <> </>], args: [compilePat(p)],
     holePos: 1 }
-    | SEQL((), sd2) => { ops: [<> </>, <> {React.string(";")} <br/> </>, <> </>], args: [compileStrDec(sd2)], holePos: 0 }
+    | SEQL((), sd2) => { ops: [<> </>, <> {React.string(";")} <br/> </>, <> </>], args:
+    [compileStrDec(sd2)], holePos: 0 }
+    | RECORDER(()) => { ops: [React.string("{"), React.string("}")], args: [], holePos: 0 }
+    | EXPROWE(l, (), None) => { ops: [<> </>, React.string("="), <> </>], args: [Atom(React.string(l))],
+    holePos: 1 }
+    | EXPROWE(l, (), Some(er)) => { ops: [<> </>, React.string("="), React.string(", "), <> </>],
+    args: [Atom(React.string(l)), compileExpRow(er)],
+    holePos: 1 }
   };
 
 let compileKVs = ((k, v)) => KV2((Atom(React.string(k)), compileVal_(v)));

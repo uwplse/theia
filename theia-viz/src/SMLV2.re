@@ -11,6 +11,9 @@
  */
 /* HACK: unfolding all recursive functions to small-step AM. definitely has to be a better way to do
      this!*/
+/* TODO: how to represent derived forms??? */
+
+
 /* TODO: figure out how to do monads in reason/ocaml. there's some ppx stuff. */
 
 /* TODO: highlight code blocks, too? Might be useful for nested let expressions. */
@@ -88,7 +91,8 @@ type ctxt =
   | APPL(hole, atExp)
   | APPR(val_, hole)
   /* is that a... */
-  | RECORDER(hole);
+  | RECORDER(hole)
+  | EXPROWE(lab, hole, option(expRow));
 
 type ctxts = list(ctxt);
 
@@ -121,7 +125,7 @@ let step = (c: configuration): option(configuration) =>
     | { rewrite: { focus: AtExp(RECORD(None)), ctxts }, env } => Some({ rewrite: { focus:
     Val(RECORD([])), ctxts }, env })
     /* start non-empty record */
-    | { rewrite: { focus: Exp(ATEXP(RECORD(Some(er)))), ctxts }, env } => Some({ rewrite: { focus:
+    | { rewrite: { focus: AtExp(RECORD(Some(er))), ctxts }, env } => Some({ rewrite: { focus:
     ExpRow(er), ctxts: [RECORDER(()), ...ctxts] }, env })
     /* complete non-empty record */
     | { rewrite: { focus: Record(r), ctxts: [RECORDER(()), ...ctxts] }, env } => Some({ rewrite: {
@@ -138,6 +142,12 @@ let step = (c: configuration): option(configuration) =>
     ctxts }, env })
 
     /* Expression Rows */
+    // [95ish (only for single element rows)]
+    | { rewrite: { focus: ExpRow({ lab, exp, rest: None }), ctxts }, env } => Some({ rewrite: {
+    focus: Exp(exp), ctxts: [EXPROWE(lab, (), None), ...ctxts] }, env })
+    | { rewrite: { focus: Val(v), ctxts: [EXPROWE(l, (), None), ...ctxts] }, env } => Some({
+    rewrite: { focus: Record([(l, v)]), ctxts }, env })
+
     /* Expressions */
     // [96]
     | { rewrite: { focus: Exp(ATEXP(a)), ctxts }, env } => Some({ rewrite: { focus: AtExp(a), ctxts
