@@ -296,10 +296,12 @@ let handleClick = (~path, ~log, ~print=Theia, ~theiaIRTrace, dispatch, _event) =
     |> ignore; */
 };
 
+type trace = { name: string, states: list(theiaIR) };
+
 type traceOutput = {path: string, log: string, name: string};
 
 [@react.component]
-let make = (~theiaIRTrace: list(theiaIR)) => {
+let make = (~theiaIRTraces: list(trace)) => {
   let (state, dispatch) = React.useReducer((state, action) =>
   switch (action) {
   | UpdateMachineState(s) => {trace: Some(s.k), currentConfig: 0}
@@ -325,23 +327,8 @@ let make = (~theiaIRTrace: list(theiaIR)) => {
     <button onClick={_ => dispatch(StepForward)}>
       {React.string("->")}
     </button>
-    {[
-      /* {path: "http://localhost:8080/rewrite-shorter/", log: "execute-1244751780.log", name: "arith-rw"},
-      {path: "http://localhost:8080/lets++-callcc-env1-5/", log: "execute-1800280225.log", name: "callcc"},
-      {path: "http://localhost:8080/lets++-factorial-letrec-semishort/", log: "execute-2113856637.log", name: "factorial letrec"},
-      {path: "http://localhost:8080/imp-sum-short/", log: "execute-694863693.log", name: "imp plus"},
-      {path: "http://localhost:8080/curried-add-2/", log: "execute-50597497.log", name: "curried add"},
-      {path: "http://localhost:8080/types-plus-5/", log: "execute-172182753.log", name: "types plus"},
-      /* TODO: this is returning some weird results. Not all type variables are distinct. Perhaps need to be tracking a different type of state. */
-      {path: "http://localhost:8080/types-composition/", log: "execute-1458594712.log", name: "types composition"},
-      {path: "http://localhost:8080/fun-factorial/", log: "execute-1500377579.log", name: "fun factorial"}, */
-    //   {path: "http://localhost:8080/mini-sml-1-1/", log: "execute-717857762.log", name: "mini-sml-1-1"},
-      {path: "", log: "", name: "ex0"},
-      /* TODO: breaks b/c freezer assumptions are violated */
-      /* {path: "http://localhost:8080/types-if/", log: "execute-587178947.log", name: "types if"}, */
-
-    ] |> List.map(({path, log, name}) =>
-        <button onClick={handleClick(~path, ~log, ~theiaIRTrace, dispatch)}>
+    {theiaIRTraces |> List.map(({states, name}) =>
+        <button onClick={handleClick(~path="", ~log="", ~theiaIRTrace=states, dispatch)}>
           {React.string(name)}
         </button>) |> rlist}
     {
