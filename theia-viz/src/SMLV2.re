@@ -12,6 +12,7 @@
 /* HACK: unfolding all recursive functions to small-step AM. definitely has to be a better way to do
      this!*/
 /* TODO: how to represent derived forms??? */
+/* TODO: how to make variable lookup more granular?? */
 
 
 /* TODO: figure out how to do monads in reason/ocaml. there's some ppx stuff. */
@@ -92,7 +93,7 @@ type ctxt =
   | APPR(val_, hole)
   /* is that a... */
   | RECORDER(hole)
-  | EXPROWE(lab, hole, option(expRow));
+  | EXPROWE(record, lab, hole, option(expRow));
 
 type ctxts = list(ctxt);
 
@@ -101,8 +102,8 @@ type rewrite = { focus, ctxts };
 type configuration = { rewrite, env: valEnv };
 
 let apply = (f, v) =>
-  switch (f) {
-    | "+" => failwith("need record values and need to be able to extract them!")
+  switch (f, v) {
+    | ("+", RECORD([("1", SVAL(INT(a))), ("2", SVAL(INT(b)))])) => SVAL(INT(a + b))
     | _ => failwith("unknown built-in function: " ++ f)
   }
 
@@ -142,11 +143,16 @@ let step = (c: configuration): option(configuration) =>
     ctxts }, env })
 
     /* Expression Rows */
-    // [95ish (only for single element rows)]
-    | { rewrite: { focus: ExpRow({ lab, exp, rest: None }), ctxts }, env } => Some({ rewrite: {
-    focus: Exp(exp), ctxts: [EXPROWE(lab, (), None), ...ctxts] }, env })
-    | { rewrite: { focus: Val(v), ctxts: [EXPROWE(l, (), None), ...ctxts] }, env } => Some({
-    rewrite: { focus: Record([(l, v)]), ctxts }, env })
+    // [95]
+    // start visiting
+    | { rewrite: { focus: ExpRow({ lab, exp, rest }), ctxts }, env } => Some({ rewrite: {
+    focus: Exp(exp), ctxts: [EXPROWE([], lab, (), rest), ...ctxts] }, env })
+    // mid visiting
+    | { rewrite: { focus: Val(v), ctxts: [EXPROWE(r, l, (), Some({ lab, exp, rest })), ...ctxts] }, env } => Some({
+    rewrite: { focus: Exp(exp), ctxts: [EXPROWE(r @ [(l, v)], lab, (), rest), ...ctxts] }, env })
+    // complete visiting
+    | { rewrite: { focus: Val(v), ctxts: [EXPROWE(r, l, (), None), ...ctxts] }, env } => Some({
+    rewrite: { focus: Record(r @ [(l, v)]), ctxts }, env })
 
     /* Expressions */
     // [96]
@@ -155,13 +161,15 @@ let step = (c: configuration): option(configuration) =>
 
     // helper rule for function application
     /* TODO: should take an APP and visit LHS */
+    | { rewrite: { focus: Exp(APP(f, x)), ctxts }, env } => Some({ rewrite: { focus: Exp(f), ctxts:
+    [APPL((), x), ...ctxts] }, env })
 
     // [101]
     /* TODO: may want a more coarse-grained traversal, not sure */
-    /* | { rewrite: { focus: Val(BASVAL(f)), ctxts: [APPL((), a), ...ctxts] }, env } => Some({ rewrite:
+    | { rewrite: { focus: Val(BASVAL(f)), ctxts: [APPL((), a), ...ctxts] }, env } => Some({ rewrite:
     { focus: AtExp(a), ctxts: [APPR(BASVAL(f), ()), ...ctxts] }, env })
     | { rewrite: { focus: Val(v), ctxts: [APPR(BASVAL(f), ()), ...ctxts] }, env } => Some({ rewrite:
-    { focus: Val(apply(f, v)), ctxts }, env }) */
+    { focus: Val(apply(f, v)), ctxts }, env })
 
     /* Matches */
     /* Match Rules */
@@ -224,7 +232,7 @@ let isFinal = (c) =>
 
 // let injectExp = (e) => { rewrite: { focus: Exp(e), ctxts: [] }, env: [] };
 
-let inject = (e) => { rewrite: { focus: e, ctxts: [] }, env: [] };
+let inject = (e) => { rewrite: { focus: e, ctxts: [] }, env: [("+", BASVAL("+"))] };
 
 let interpretTraceBounded = (~maxDepth=100, p) => TheiaUtil.takeWhileInclusive((c) => !isFinal(c), TheiaUtil.iterateMaybeMaxDepth(maxDepth, step, inject(p)));
 let interpretTrace = (p) => TheiaUtil.takeWhileInclusive((c) => !isFinal(c), TheiaUtil.iterateMaybe(step, inject(p)));
@@ -249,7 +257,7 @@ let ex3 = TopDec(
                 DEC(
                   VAL(PLAIN(ATPAT(ID("x")),
                       ATEXP(SCON(INT(34))), None))), DEC(
-                  VAL(PLAIN(ATPAT(ID("x")),
+                  VAL(PLAIN(ATPAT(ID("y")),
                       ATEXP(SCON(INT(17))), None)))), None));
 
 /* {} () */
@@ -257,10 +265,46 @@ let ex4 = AtExp(RECORD(None));
 /* { 1=5 } (5,) */
 let ex5 = AtExp(RECORD(Some({ lab: "1", exp: ATEXP(SCON(INT(5))), rest: None })))
 /* { 1=5, 2=78 } (5, 78) */
-// let ex4 = false;
+let ex6 = AtExp(RECORD(Some({ lab: "1", exp: ATEXP(SCON(INT(5))), rest: Some({ lab: "2", exp:
+ATEXP(SCON(INT(78))), rest: None}) })))
+
+/* TODO: no syntax sugar for records -> tuples or infix ops
+  val x = 34;
+  val y = 17;
+  val z = + { 1=5, 2=78 }
+*/
+let ex7 = TopDec(
+            STRDEC(
+              SEQ(
+                DEC(
+                  VAL(PLAIN(ATPAT(ID("x")),
+                      ATEXP(SCON(INT(34))), None))),
+              SEQ(
+                DEC(
+                  VAL(PLAIN(ATPAT(ID("y")),
+                      ATEXP(SCON(INT(17))), None))),
+                DEC(
+                  VAL(PLAIN(ATPAT(ID("z")),
+                      APP(ATEXP(ID("+")), RECORD(Some({ lab: "1", exp: ATEXP(SCON(INT(5))), rest: Some({ lab: "2", exp:
+ATEXP(SCON(INT(78))), rest: None}) }))), None))))), None));
 
 /*
   val x = 34;
   val y = 17;
   val z = (x + y) + (y + 2)
 */
+let ex8 = TopDec(
+            STRDEC(
+              SEQ(
+                DEC(
+                  VAL(PLAIN(ATPAT(ID("x")),
+                      ATEXP(SCON(INT(34))), None))),
+              SEQ(
+                DEC(
+                  VAL(PLAIN(ATPAT(ID("y")),
+                      ATEXP(SCON(INT(17))), None))),
+                DEC(
+                  VAL(PLAIN(ATPAT(ID("z")),
+                    APP(ATEXP(ID("+")), RECORD(Some({ lab: "1", exp: ATEXP(PARA(APP(ATEXP(ID("+")), RECORD(Some({ lab: "1", exp: ATEXP(ID("x")), rest: Some({ lab: "2", exp:
+ATEXP(ID("y")), rest: None}) }))))), rest: Some({lab: "2", exp: ATEXP(PARA(APP(ATEXP(ID("+")), RECORD(Some({ lab: "1", exp: ATEXP(ID("y")), rest: Some({ lab: "2", exp:
+ATEXP(SCON(INT(2))), rest: None}) }))))), rest: None})}))), None))))), None));

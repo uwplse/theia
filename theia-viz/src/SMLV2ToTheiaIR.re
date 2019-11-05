@@ -34,6 +34,7 @@ and compileExpRow = ({ lab, exp, rest}) =>
 and compileExp = (e) =>
   switch (e) {
     | ATEXP(a) => compileAtExp(a)
+    | APP(f, x) => Apply2([<> </>, React.string(" "), <> </>], [compileExp(f), compileAtExp(x)])
   }
 
 and compileDec = (d) =>
@@ -64,6 +65,7 @@ let compileSVal = (sv: sVal) =>
 let rec compileVal_ = (v) =>
   switch (v) {
     | SVAL(sv) => compileSVal(sv)
+    | BASVAL(b) => Value2([], [Apply2([React.string("builtin "), <> </>], [Atom(React.string(b))])])
     | RECORD([]) => Value2([], [Atom(React.string("()"))])
     | RECORD(r) => Value2([], [Apply2([React.string("{"), React.string("}")], [compileRecord(r)])])
   }
@@ -107,14 +109,25 @@ let compileCtxt = (c) =>
     [compileExp(e)], holePos: 0 }
     | VALBINDE(p, (), None) => { ops: [<> </>, React.string(" = "), <> </>], args: [compilePat(p)],
     holePos: 1 }
+    | VALBINDE(_) => failwith("TODO")
+    | APPL((), x) => { ops: [<> </>, React.string(" "), <> </>], args: [compileAtExp(x)], holePos: 0
+    }
+    | APPR(f, ()) => { ops: [<> </>, React.string(" "), <> </>], args: [compileVal_(f)], holePos: 1
+    }
     | SEQL((), sd2) => { ops: [<> </>, <> {React.string(";")} <br/> </>, <> </>], args:
     [compileStrDec(sd2)], holePos: 0 }
     | RECORDER(()) => { ops: [React.string("{"), React.string("}")], args: [], holePos: 0 }
-    | EXPROWE(l, (), None) => { ops: [<> </>, React.string("="), <> </>], args: [Atom(React.string(l))],
+    | EXPROWE([], l, (), None) => { ops: [<> </>, React.string("="), <> </>], args: [Atom(React.string(l))],
     holePos: 1 }
-    | EXPROWE(l, (), Some(er)) => { ops: [<> </>, React.string("="), React.string(", "), <> </>],
+    | EXPROWE(r, l, (), None) => { ops: [<> </>, React.string(", "), React.string("="), <> </>],
+    args: [compileRecord(r), Atom(React.string(l))],
+    holePos: 2 }
+    | EXPROWE([], l, (), Some(er)) => { ops: [<> </>, React.string("="), React.string(", "), <> </>],
     args: [Atom(React.string(l)), compileExpRow(er)],
     holePos: 1 }
+    | EXPROWE(r, l, (), Some(er)) => { ops: [<> </>, React.string(", "), React.string("="), React.string(", "), <> </>],
+    args: [compileRecord(r), Atom(React.string(l)), compileExpRow(er)],
+    holePos: 2 }
   };
 
 let compileKVs = ((k, v)) => KV2((Atom(React.string(k)), compileVal_(v)));

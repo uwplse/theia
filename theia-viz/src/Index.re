@@ -20,6 +20,9 @@ let tests =
     {name: "ex3", example: SMLV2.ex3},
     {name: "ex4", example: SMLV2.ex4},
     {name: "ex5", example: SMLV2.ex5},
+    {name: "ex6", example: SMLV2.ex6},
+    {name: "ex7", example: SMLV2.ex7},
+    {name: "ex8", example: SMLV2.ex8},
   ]
 
 let trace = ({name, example}) => TheiaSML.{name, states: example |> SMLV2.interpretTrace |> List.map(SMLV2ToTheiaIR.smlV2ToTheiaIR)};
