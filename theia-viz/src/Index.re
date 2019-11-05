@@ -13,16 +13,16 @@ ReactDOMRe.renderToElementWithId(<Component2 greeting="Hello!" />, "index2"); */
 type test = {name: string, example: SMLV2.focus};
 
 let tests =
-  [
-    {name: "ex0", example: SMLV2.ex0},
-    {name: "ex1", example: SMLV2.ex1},
-    {name: "ex2", example: SMLV2.ex2},
-    {name: "ex3", example: SMLV2.ex3},
-    {name: "ex4", example: SMLV2.ex4},
-    {name: "ex5", example: SMLV2.ex5},
-    {name: "ex6", example: SMLV2.ex6},
-    {name: "ex7", example: SMLV2.ex7},
-    {name: "ex8", example: SMLV2.ex8},
+  SMLExamples.[
+    {name: "ex0", example: ex0},
+    {name: "ex1", example: ex1},
+    {name: "ex2", example: ex2},
+    {name: "ex3", example: ex3},
+    {name: "ex4", example: ex4},
+    {name: "ex5", example: ex5},
+    {name: "ex6", example: ex6},
+    {name: "ex7", example: ex7},
+    {name: "ex8", example: ex8},
   ]
 
 let trace = ({name, example}) => TheiaSML.{name, states: example |> SMLV2.interpretTrace |> List.map(SMLV2ToTheiaIR.smlV2ToTheiaIR)};
