@@ -17,14 +17,19 @@ let insert = (x, xs, i) => {
   xs @ [x, ...ys]
 };
 
-let prettierList = (~parens=true, ss) => {
+let prettierList = (~parens=true, ~space=true, ss) => {
+  let parens = false; /* manual override */
   let ss = List.filter((s) => s != React.string{""}, ss);
   let rec loop = (ss) =>
     switch (ss) {
     | [] => <> </>
     | [s] => <> s </>
-    | [s, t, ...ss] when t == React.string(";") => <> s t <br /> {loop(ss)} </>
-    | [s, ...ss] => <> s {React.string(" ")} {loop(ss)} </>
+    | [s, ...ss] =>
+        if (space) {
+            <> s {React.string(" ")} {loop(ss)} </>
+        } else {
+            <> s {loop(ss)} </>
+        }
     };
   if (parens) {
     <> {React.string("(")} {loop(ss)} {React.string(")")} </>
@@ -47,3 +52,15 @@ let useKeyPressed = (onKeyPressed: Dom.keyboardEvent => unit) => {
     );
   });
 };
+
+/* https://stackoverflow.com/a/244104 */
+let (--) = (i, j) => {
+  let rec aux = (n, acc) => if (n < i) { acc } else { aux(n - 1, [n, ...acc]) };
+  aux(j, [])
+};
+
+let rec lookupOne = (key, oneStack) =>
+  switch (oneStack) {
+    | [] => None
+    | [(k, v), ...oneStack] => if (k == key) { Some(v) } else { lookupOne(key, oneStack) }
+  };
