@@ -3,13 +3,11 @@
 /* 
   TODO:
     - make type checking work
-    - write a version of the currying python tutor example
-    - imperative language?
     - fix prop key warning
     - speed up using react devtools
     - *KOOL*
-    - add two states side-by-side
     - print original program text
+    - https://lwn.net/Articles/782864/ for Cytoscape and Dagre bindings
 */
 
 let rlist = (l) => l |> Array.of_list |> React.array;
@@ -22,7 +20,8 @@ let (--) = (i, j) => {
 
 /* TODO: modularize per example/language */
 let values = [["closure"], ["muclosure"], ["cc"]];
-let labels = ["LAMBDA", "LAMBDA-SYNTAX", "IMP-SYNTAX", "FUN-UNTYPED-COMMON", "SML-SYNTAX"];
+let labels = ["LAMBDA", "LAMBDA-SYNTAX", "IMP-SYNTAX", "FUN-UNTYPED-COMMON", "MINI-SML-SYNTAX", "SML-SYNTAX", "LAMBDA-SEMANTICS"];
+let nodes = [[".List{\"", ";", "", "MINI-SML-SYNTAX\"}"], ["#EmptyK"]];
 
 let rec appNodesEq = (v1, v2) => {
   switch (v1, v2) {
@@ -145,14 +144,21 @@ module Decode = {
     Token(json |> field("name", string))
   }
   and apply = (json) => {
-    Apply(
-      json |> field("label", string) |> cleanLabels |> Js.String.split("_") |> Array.to_list,
-      json |> field("args", list(kNode))
-    )
+    let cleanedLabel = json |> field("label", string) |> cleanLabels |> Js.String.split("_") |> Array.to_list;
+    if (List.mem(cleanedLabel, nodes)) {
+      Token("")
+    } else {
+      Apply(
+        cleanedLabel,
+        json |> field("args", list(kNode))
+      )
+    }
   }
   and freezer = (json) => {
     let label = json |> field("label", string);
-    let holePos = 1 - (label |> Js.String.charAt(Js.String.length(label) - 2) |> int_of_string);
+    Js.log(label |> Js.String.split("_"));
+    let numHoles = (label |> Js.String.split("_") |> Array.length) - 4;
+    let holePos = numHoles - (label |> Js.String.charAt(Js.String.length(label) - 2) |> int_of_string);
     Freezer(
       label |> extractName |> Js.String.split("_") |> Array.to_list,
       json |> field("args", list(kNode)),
@@ -417,7 +423,9 @@ let render_close_brack = <span style=(ReactDOMRe.Style.make(~color="blue", ()))>
 let rec kn2Pretty = (~parens=true, k) =>
   switch (k) {
   | Token2(s) => <> {React.string(s)} </>
-  | Apply2(ops, args) => Util.interleave(List.map(React.string, ops), List.map(kn2Pretty, args)) |> Util.prettierList(~parens)
+  | Apply2(ops, args) when List.length(ops) >= 1 && List.nth(ops, 0) == "val" => Util.interleave(List.map(React.string, ops), List.map(kn2Pretty, args)) |> Util.prettierList(~parens=false)
+  | Apply2(ops, args) when List.length(ops) >= 2 && List.nth(ops, 1) == ";" => Util.interleave(List.map(React.string, ops), List.map(kn2Pretty, args)) |> Util.prettierList(~parens=false)
+  | Apply2(ops, args) => Js.log(Array.of_list(ops)); Util.interleave(List.map(React.string, ops), List.map(kn2Pretty, args)) |> Util.prettierList(~parens)
   | Freezer2(_) => raise(CompileError("There shouldn't be a Freezer2!"))
   /* | Sequence2(l) => <> {Util.interleave(List.map(kn2Pretty, l), (1--(List.length(l) - 1)) |> List.map(_ => React.string(" ~> "))) |> Util.prettierList} </> */
   | Sequence2([kn]) => <> {kn2Pretty(~parens=false, kn)} </>
@@ -425,17 +433,15 @@ let rec kn2Pretty = (~parens=true, k) =>
   /* | Sequence2(l) => <> {kn2PrettyList(l)} </> */ /* TODO: almost right except for subexpressions that contain sequences like in callcc.
     I think it's better to just have a list of environments than a store them in the k node. This is a semantics problem.
     There are two ways to affect the visualization: change how individual elements are rendered or change the semantics. */
-  | Map2([]) => 
-      <table style=(ReactDOMRe.Style.make(~borderCollapse="collapse", ~display="inline-table", ()))>
-        <tbody>  
-          <tr>
-            <td style=(ReactDOMRe.Style.make(~border="1px solid black", ()))> {React.string("/")} </td>
-          </tr>
-        </tbody>
-      </table>
+  | Map2([]) => kn2Pretty(Map2([KV2((Token2(Util.nbsp), Token2(Util.nbsp)))]))
   | Map2(l) =>
-      <table style=(ReactDOMRe.Style.make(~borderCollapse="collapse", ~display="inline-table", ()))>
-        /* TODO: thead? */
+      <table style=(ReactDOMRe.Style.make(~borderCollapse="collapse", ~borderStyle="hidden", ~display="inline-table", ()))>
+        <thead>
+            <tr>
+                <th style=(ReactDOMRe.Style.make(~border="1px solid black", ~paddingRight="5px", ~textAlign="right", ()))> {React.string("Id")} </th>
+                <th style=(ReactDOMRe.Style.make(~border="1px solid black", ~paddingLeft="5px", ~textAlign="left", ()))> {React.string("Val")} </th>
+            </tr>
+        </thead>
         <tbody>
           {
             l|>List.mapi((i, kv) => 
@@ -471,15 +477,22 @@ let rec kn2Pretty = (~parens=true, k) =>
       {rlist(List.map(kn2Pretty(~parens=false), children))}
     </fieldset>
 }
-/* bracket style */
+/* bracket style like shift/reset */
 and prettyFreeze = (~nestNum=0, {ops, args, holePos}, arg) => {
   let newArgs = Util.insert(<> render_open_brack arg render_close_brack </>, List.map(kn2Pretty, args), holePos);
   Util.interleave(List.map(React.string, ops), newArgs) |> Util.prettierList(~parens=false)
 }
-/* underline style */
+/* underline style like WinHIPE et al. */
 /* and prettyFreeze = (~nestNum=0, {ops, args, holePos}, arg) => {
   let newArgs = Util.insert(<span style=(ReactDOMRe.Style.make(~borderBottom="1px solid blue", ~paddingBottom=(string_of_int(nestNum*2) ++ "px"), ()))> arg </span>, List.map(kn2Pretty, args), holePos);
   Util.interleave(List.map(React.string, ops), newArgs) |> Util.prettierList
+} */
+/* highlighting style like Hazel */
+/* and prettyFreeze = (~nestNum=0, {ops, args, holePos}, arg) => {
+  /* TODO: figure out opacity and lightness automatically based on max depth? sacrifices some completeness otherwise */
+  let parens = nestNum == 0 ? false : true;
+  let newArgs = Util.insert(<div style=(ReactDOMRe.Style.make(~display="inline", ~backgroundColor="hsla(240, 100%, " ++ string_of_int(80 - nestNum*10) ++ "%, 0.33)", ()))> arg </div>, List.map(kn2Pretty, args), holePos);
+  Util.interleave(List.map(React.string, ops), newArgs) |> Util.prettierList(~parens)
 } */
 and prettyKont2List = (~nestNum=0, ~parens=false, kn, fs) =>
   switch (fs) {
@@ -608,12 +621,24 @@ let make = () => {
       /* TODO: this is returning some weird results. Not all type variables are distinct. Perhaps need to be tracking a different type of state. */
       {path: "http://localhost:8080/types-composition/", log: "execute-1458594712.log", name: "types composition"},
       {path: "http://localhost:8080/fun-factorial/", log: "execute-1500377579.log", name: "fun factorial"}, */
-      {path: "http://localhost:8080/mini-sml-1-1/", log: "execute-717857762.log", name: "mini-sml-1-1"},
+      /* {path: "http://localhost:8080/mini-sml-1-1/", log: "execute-717857762.log", name: "mini-sml-1-1"},
+      {path: "http://localhost:8080/mini-sml-2-2/", log: "execute-20964036.log", name: "mini-sml-2-2"},
+      {path: "http://localhost:8080/mini-sml-2-3/", log: "execute-2058374457.log", name: "mini-sml-2-3"},
+      {path: "http://localhost:8080/mini-sml-3-3/", log: "execute-2058374457.log", name: "mini-sml-3-3"},
+      {path: "http://localhost:8080/mini-sml-exp-0/", log: "execute-220715598.log", name: "mini-sml-exp-0"}, */
+      
+      /* {path: "http://localhost:8080/curried-add-no-macro/", log: "execute-120339958.log", name: "curried add no macro"},
+      {path: "http://localhost:8080/imp-sum-short/", log: "execute-694863693.log", name: "imp plus"},
+      {path: "http://localhost:8080/factorial-letrec-no-macro/", log: "execute-1787207901.log", name: "factorial-letrec-no-macro"},
+      {path: "http://localhost:8080/lets++-callcc-env1-5/", log: "execute-1800280225.log", name: "callcc"},
+      {path: "http://localhost:8080/callcc-env1-no-macro/", log: "execute-250179481.log", name: "callcc no macro"}, */
+      
+      {path: "http://localhost:8080/ex0-mini-sml/", log: "execute-1187521639.log", name: "ex0"},
       /* TODO: breaks b/c freezer assumptions are violated */
       /* {path: "http://localhost:8080/types-if/", log: "execute-587178947.log", name: "types if"}, */
 
     ] |> List.map(({path, log, name}) =>
-        <button onClick={handleClick(~path, ~log, dispatch)}>
+        <button onClick={handleClick(~path, ~log, /* ~print=Json, */ dispatch)}>
           {React.string(name)}
         </button>) |> rlist}
     {
