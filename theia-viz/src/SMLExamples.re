@@ -92,3 +92,15 @@ ATEXP(SCON(INT(2))), rest: None}) }))))), rest: None})}))), None))),
                 DEC(
                   VAL(PLAIN(ATPAT(ID("q")),
                     APP(ATEXP(ID("+")), RECORD(Some({ lab: "1", exp: ATEXP(ID("z")), rest: Some({lab: "2", exp: ATEXP(SCON(INT(1))), rest: None})}))), None)))))), None));
+
+let ex10 = TopDec(
+  STRDEC(
+    SEQ(DEC(VAL(PLAIN(ATPAT(ID("a")),
+                      ATEXP(SCON(INT(1))), None))),
+    SEQ(DEC(VAL(PLAIN(ATPAT(ID("b")),
+                      ATEXP(SCON(INT(2))), None))),
+        DEC(VAL(PLAIN(ATPAT(ID("a")),
+                      ATEXP(SCON(INT(3))), None))))
+    )
+    , None)
+);
